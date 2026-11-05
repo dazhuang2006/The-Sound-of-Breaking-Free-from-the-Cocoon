@@ -1,0 +1,106 @@
+# ============================================================
+
+# ---------- 密钥与本地配置 ----------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+config.local.*
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# 虚拟环境
+.venv/
+venv/
+ENV/
+env/
+.python-version
+
+# ---------- 测试 / 类型检查 / 覆盖率 ----------
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+.pyre/
+.pytype/
+
+# ---------- 运行时数据 ----------
+# SQLite 数据库、向量索引、上传文件等均可在启动时重建
+data/
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite
+*.sqlite3
+*.db3
+logs/
+*.log
+
+# ---------- 前端 / Node ----------
+node_modules/
+web/dist/
+.vite/
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.eslintcache
+
+# ---------- IDE / 编辑器 ----------
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-workspace
+
+# ---------- 操作系统 ----------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ---------- 其他本地临时文件 ----------
+*.local
+tmp/
+.cache/
+.ipynb_checkpoints/
