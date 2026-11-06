@@ -89,6 +89,25 @@ def test_training_rejects_unknown_scenario(client: TestClient, account: dict):
     assert response.status_code == 422
 
 
+def test_abort_training_closes_session(client: TestClient, account: dict):
+    """刚进场景就退出：标记 aborted，不再出现在「继续上次」里。"""
+    start = client.post(
+        "/api/v1/training/start", json={"scenario": "thanks"}, headers=account["headers"]
+    ).json()
+    aborted = client.post(
+        f"/api/v1/training/{start['id']}/abort", headers=account["headers"]
+    ).json()
+    assert aborted["status"] == "aborted"
+    sessions = client.get("/api/v1/training/sessions", headers=account["headers"]).json()
+    active = [item for item in sessions if item["status"] == "active"]
+    assert all(item["id"] != start["id"] for item in active)
+    # 放弃后可以立刻重新开始，不会因为旧会话没关而被挡住
+    again = client.post(
+        "/api/v1/training/start", json={"scenario": "help"}, headers=account["headers"]
+    )
+    assert again.status_code == 201
+
+
 def test_training_is_private(client: TestClient, account: dict, child: dict):
     start = client.post(
         "/api/v1/training/start",

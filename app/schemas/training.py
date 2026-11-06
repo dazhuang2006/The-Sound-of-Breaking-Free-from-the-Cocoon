@@ -41,6 +41,10 @@ class TrainingTurn(BaseModel):
     prompt: str | None = None
     summary: str | None = None
     transcript: list[dict[str, Any]] = Field(default_factory=list)
+    # 最近一轮的评价来源：speech（口语命中）/ aac（手势图片）/ llm（语义复判）
+    last_via: str | None = None
+    last_correct: bool | None = None
+    last_stuck: bool = False
 
 
 class TrainingSessionOut(BaseModel):

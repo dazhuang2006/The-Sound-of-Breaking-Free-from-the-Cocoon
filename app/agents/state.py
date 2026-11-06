@@ -19,6 +19,10 @@ class AgentState(TypedDict, total=False):
     child_profile: dict[str, Any]
     followup_context: str
 
+    # 2D 游戏入口：直接指定训练会话，复用同一条「安全审核 → 训练推进」链路
+    training_id: str | None
+    game_mode: bool
+
     # 路由与安全
     mode: str
     intent: str

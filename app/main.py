@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from app.api.v1.router import api_router
-from app.core.config import get_settings
+from app.core.config import DEFAULT_DEV_SECRET, get_settings
 from app.core.logging import configure_logging, get_logger
 from app.db.base import dispose_engine, get_session_factory, init_db
 from app.services.container import build_services, close_services
@@ -29,6 +29,8 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     configure_logging(settings.debug)
     logger.info("正在启动 %s v%s（env=%s）", settings.app_name, settings.app_version, settings.env)
+    if settings.secret_key == DEFAULT_DEV_SECRET:
+        logger.warning("SECRET_KEY 使用默认开发值，仅限本地使用；请在 .env 中配置随机密钥")
     await init_db()
     services = await build_services(settings)
     app.state.services = services
@@ -75,6 +77,8 @@ def create_app() -> FastAPI:
                 "embedder": services.embedder.name,
                 "vector_store": services.store.name,
                 "cache": services.cache.name,
+                "asr": services.asr.name,
+                "tts": services.tts.name,
             }
         )
         try:

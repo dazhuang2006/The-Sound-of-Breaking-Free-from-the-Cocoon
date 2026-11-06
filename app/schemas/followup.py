@@ -49,3 +49,26 @@ class FollowupSummaryOut(BaseModel):
     content: str
     metrics: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
+
+
+class VoiceDraft(BaseModel):
+    """家长口述整理出的结构化草稿；未提及的字段保持 null。"""
+
+    date: str | None = None
+    daily_activities: str | None = None
+    training_content: str | None = None
+    behavior_observations: str | None = None
+    emotional_state: str | None = None
+    communication_performance: str | None = None
+    parent_notes: str | None = None
+
+
+class VoiceDraftRequest(BaseModel):
+    transcription: str = Field(min_length=1, max_length=5000)
+    child_id: int | None = None
+
+
+class VoiceDraftResponse(BaseModel):
+    draft: VoiceDraft
+    provider: str
+    mocked: bool = False

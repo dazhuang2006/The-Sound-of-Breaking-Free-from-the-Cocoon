@@ -5,6 +5,8 @@ const baseURL = import.meta.env.VITE_API_BASE || '/api/v1'
 export const http = axios.create({ baseURL, timeout: 90000 })
 
 http.interceptors.request.use((config) => {
+  // ngrok 免费版会给浏览器请求插入提示页；带上该头可让 XHR 直接拿到 JSON。
+  config.headers['ngrok-skip-browser-warning'] = 'true'
   const token = localStorage.getItem('pojian_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config

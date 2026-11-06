@@ -63,6 +63,17 @@ async def analyze(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     if verdict.blocked:
         return {**base, "intent": "safety", "blocked": True, "mode": state.get("mode", "qa")}
 
+    # 2D 游戏：由前端指定训练会话，安全审核仍然先跑一遍，然后直接进入训练推进。
+    # 游戏里孩子说的可能是「谢谢」「我不想吃」，不能按聊天指令解析（否则会被路由成答疑）。
+    if state.get("training_id"):
+        return {
+            **base,
+            "intent": "training_turn",
+            "mode": "training",
+            "scenario": None,
+            "blocked": False,
+        }
+
     active = await services.training.get_active(db, user.id, state.get("session_id"))
     mode = "training" if active else "qa"
     scenario: str | None = None
@@ -232,7 +243,19 @@ async def training_start(state: AgentState, config: RunnableConfig) -> dict[str,
 
 async def training_turn(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     services, db, user = _deps(config)
-    active = await services.training.get_active(db, user.id, state.get("session_id"))
+    training_id = state.get("training_id")
+    if training_id:
+        try:
+            active = await services.training.get(db, user.id, training_id)
+        except LookupError:
+            return {
+                "answer": "这次训练的存档找不到了，可以重新选一个场景开始。",
+                "training": None,
+                "meta": _empty_meta(),
+                "citations": [],
+            }
+    else:
+        active = await services.training.get_active(db, user.id, state.get("session_id"))
     if active is None:
         return {
             "answer": "当前没有进行中的训练。可以说「开始训练」，我会带你进入情景练习。",
@@ -240,7 +263,13 @@ async def training_turn(state: AgentState, config: RunnableConfig) -> dict[str, 
             "meta": _empty_meta(),
             "citations": [],
         }
-    view = await services.training.respond(db, active, state["user_message"])
+    evaluation = None
+    if state.get("game_mode"):
+        # 可选：DeepSeek 语义复判（规则未通过时才真的调用模型）
+        evaluation = await services.training_judge.evaluate(active, state["user_message"])
+    view = await services.training.respond(
+        db, active, state["user_message"], evaluation=evaluation
+    )
     answer = view.feedback
     if view.prompt and view.prompt not in answer:
         answer = f"{answer}\n\n{view.prompt}"

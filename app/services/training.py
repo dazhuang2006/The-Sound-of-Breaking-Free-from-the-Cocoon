@@ -46,7 +46,7 @@ def normalize(text: str) -> str:
 @dataclass
 class Evaluation:
     correct: bool
-    via: str = "speech"  # speech/aac
+    via: str = "speech"  # speech/aac/llm
     stuck: bool = False
 
 
@@ -65,6 +65,9 @@ class TrainingView:
     prompt: str | None
     summary: str | None
     transcript: list[dict[str, Any]]
+    last_via: str | None = None
+    last_correct: bool | None = None
+    last_stuck: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         percent = 100 if self.total_steps == 0 else round(self.step_index / self.total_steps * 100)
@@ -83,6 +86,9 @@ class TrainingView:
             "prompt": self.prompt,
             "summary": self.summary,
             "transcript": self.transcript,
+            "last_via": self.last_via,
+            "last_correct": self.last_correct,
+            "last_stuck": self.last_stuck,
         }
 
 
@@ -167,7 +173,18 @@ class TrainingService:
         return self._view(session, feedback=scenario.intro, prompt=scenario.steps[0].prompt)
 
     # ------------------------------------------------------------ 单轮互动
-    async def respond(self, db: AsyncSession, session: TrainingSession, answer: str) -> TrainingView:
+    async def respond(
+        self,
+        db: AsyncSession,
+        session: TrainingSession,
+        answer: str,
+        evaluation: Evaluation | None = None,
+    ) -> TrainingView:
+        """推进一轮。
+
+        `evaluation` 允许调用方（2D 游戏服务器）先做一次语义复判，再交回状态机推进；
+        传 None 时行为与原来完全一致（确定性规则：关键词 + 替代沟通线索）。
+        """
         scenario = get_scenario(session.scenario)
         if session.status != "active":
             return self._view(
@@ -176,10 +193,10 @@ class TrainingService:
 
         step_index = min(session.step_index, len(scenario.steps) - 1)
         step = scenario.steps[step_index]
-        evaluation = self._evaluate(answer, step)
+        evaluation = evaluation or self.evaluate(answer, step)
         transcript = [
             *session.transcript,
-            {"role": "child", "content": answer.strip()[:300], "step": step_index},
+            {"role": "child", "content": answer.strip()[:300], "step": step_index, "via": evaluation.via},
         ]
 
         if evaluation.correct:
@@ -190,12 +207,20 @@ class TrainingService:
             if evaluation.via == "aac":
                 praise = f"{praise}（用手势/图片表达同样算完成。）"
             if session.step_index >= len(scenario.steps):
-                return await self._complete(db, session, scenario, transcript, praise)
+                return await self._complete(
+                    db, session, scenario, transcript, praise, step_index, evaluation
+                )
             next_step = scenario.steps[session.step_index]
             transcript.append({"role": "coach", "content": praise, "step": step_index})
             transcript.append({"role": "coach", "content": next_step.prompt, "step": session.step_index})
             session.transcript = transcript
-            return self._view(session, feedback=praise, prompt=next_step.prompt)
+            return self._view(
+                session,
+                feedback=praise,
+                prompt=next_step.prompt,
+                last_via=evaluation.via,
+                last_correct=True,
+            )
 
         # 未达成：分层提示
         session.hint_level += 1
@@ -207,7 +232,14 @@ class TrainingService:
             transcript.append({"role": "hint", "content": hint, "step": step_index, "level": session.hint_level})
             transcript.append({"role": "coach", "content": feedback, "step": step_index})
             session.transcript = transcript
-            return self._view(session, feedback=feedback, prompt=step.prompt)
+            return self._view(
+                session,
+                feedback=feedback,
+                prompt=step.prompt,
+                last_via=evaluation.via,
+                last_correct=False,
+                last_stuck=evaluation.stuck,
+            )
 
         # 提示用尽：完整示范后推进，不纠缠
         demo = step.hints[-1]
@@ -216,12 +248,21 @@ class TrainingService:
         session.step_index = step_index + 1
         feedback = f"我给你示范一次：{demo} 我们可以先跳过这一步，继续往下。"
         if session.step_index >= len(scenario.steps):
-            return await self._complete(db, session, scenario, transcript, feedback)
+            return await self._complete(
+                db, session, scenario, transcript, feedback, step_index, evaluation
+            )
         next_step = scenario.steps[session.step_index]
         transcript.append({"role": "coach", "content": feedback, "step": step_index})
         transcript.append({"role": "coach", "content": next_step.prompt, "step": session.step_index})
         session.transcript = transcript
-        return self._view(session, feedback=feedback, prompt=next_step.prompt)
+        return self._view(
+            session,
+            feedback=feedback,
+            prompt=next_step.prompt,
+            last_via=evaluation.via,
+            last_correct=False,
+            last_stuck=evaluation.stuck,
+        )
 
     # ------------------------------------------------------------ 结束
     async def abort(
@@ -245,7 +286,12 @@ class TrainingService:
 
     # ------------------------------------------------------------ 内部
     @staticmethod
-    def _evaluate(answer: str, step: ScenarioStep) -> Evaluation:
+    def evaluate(answer: str, step: ScenarioStep) -> Evaluation:
+        """确定性评价：口语关键词 + 替代沟通线索。
+
+        2D 游戏会在这一步之后追加一次可选的 DeepSeek 语义复判，
+        但确定性规则始终先执行，保证离线、可测试、不依赖模型。
+        """
         text = normalize(answer)
         if not text or any(word in text for word in _STUCK_WORDS):
             return Evaluation(correct=False, stuck=True)
@@ -263,11 +309,14 @@ class TrainingService:
         scenario: Scenario,
         transcript: list[dict[str, Any]],
         feedback: str,
+        step_index: int | None = None,
+        evaluation: Evaluation | None = None,
     ) -> TrainingView:
         session.status = "completed"
         session.ended_at = _now()
         hint_count = sum(1 for item in transcript if item.get("role") == "hint")
-        summary = self._build_summary(session, scenario, hint_count)
+        # 用本轮最新的 transcript 生成小结：否则最后一句话不会出现在小结里
+        summary = self._build_summary(session, scenario, hint_count, transcript)
         session.summary = summary
         transcript.append(
             {
@@ -278,10 +327,22 @@ class TrainingService:
             }
         )
         session.transcript = transcript
-        return self._view(session, feedback=feedback, prompt=None, summary=summary)
+        return self._view(
+            session,
+            feedback=feedback,
+            prompt=None,
+            summary=summary,
+            last_via=evaluation.via if evaluation else None,
+            last_correct=evaluation.correct if evaluation else None,
+        )
 
     @staticmethod
-    def _build_summary(session: TrainingSession, scenario: Scenario, hint_count: int) -> str:
+    def _build_summary(
+        session: TrainingSession,
+        scenario: Scenario,
+        hint_count: int,
+        transcript: list[dict[str, Any]] | None = None,
+    ) -> str:
         reached = min(session.step_index, len(scenario.steps))
         lines = [
             f"【{scenario.name}·训练小结】",
@@ -290,7 +351,7 @@ class TrainingService:
             f"{session.correct_count} 次给出了符合情境的回应，使用提示 {hint_count} 次。",
             "过程记录：",
         ]
-        for item in session.transcript:
+        for item in transcript if transcript is not None else session.transcript:
             if item.get("role") == "child":
                 lines.append(f"- 孩子回应：{item.get('content', '')}")
             elif item.get("role") == "hint":
@@ -318,6 +379,9 @@ class TrainingService:
         feedback: str,
         prompt: str | None,
         summary: str | None = None,
+        last_via: str | None = None,
+        last_correct: bool | None = None,
+        last_stuck: bool = False,
     ) -> TrainingView:
         scenario = SCENARIOS.get(session.scenario)
         return TrainingView(
@@ -334,6 +398,9 @@ class TrainingService:
             prompt=prompt,
             summary=summary if summary is not None else session.summary,
             transcript=list(session.transcript),
+            last_via=last_via,
+            last_correct=last_correct,
+            last_stuck=last_stuck,
         )
 
     @staticmethod

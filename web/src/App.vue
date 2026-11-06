@@ -2,18 +2,27 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { store, logout, setChild } from './store'
+import AppIcon from './components/AppIcon.vue'
+import BrandMark from './components/BrandMark.vue'
 
 const route = useRoute()
 const router = useRouter()
 
 const navs = [
-  { name: 'chat', label: '居家答疑', path: '/', icon: 'chat' },
-  { name: 'training', label: '情景训练', path: '/training', icon: 'play' },
+  { name: 'dashboard', label: '工作台', path: '/dashboard', icon: 'dashboard' },
+  { name: 'children', label: '儿童档案', path: '/children', icon: 'child' },
+  { name: 'chat', label: 'AI 康复答疑', path: '/chat', icon: 'chat' },
+  { name: 'game', label: '儿童情景模拟', path: '/game', icon: 'game' },
   { name: 'followup', label: '康复随访', path: '/followup', icon: 'chart' },
-  { name: 'children', label: '孩子档案', path: '/children', icon: 'child' }
+  { name: 'settings', label: '系统设置', path: '/settings', icon: 'settings' }
 ]
 
-const current = computed(() => navs.find((item) => item.name === route.name)?.label || '')
+const immersive = computed(() => Boolean(route.meta.immersive))
+const current = computed(() => navs.find((item) => item.name === route.name) || null)
+const pageTitle = computed(() => route.meta.title || current.value?.label || '工作台')
+const pageSub = computed(() => route.meta.subtitle || '')
+const today = new Date()
+const dateLabel = `${today.getMonth() + 1} 月 ${today.getDate()} 日`
 
 function onChildChange(event) {
   setChild(Number(event.target.value) || null)
@@ -26,15 +35,19 @@ function signOut() {
 </script>
 
 <template>
-  <div v-if="store.user" class="app-shell">
+  <router-view v-if="!store.user || route.meta.public" />
+
+  <router-view v-else-if="immersive" />
+
+  <div v-else class="app-shell">
     <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-mark">破</div>
+      <router-link to="/dashboard" class="brand">
+        <BrandMark :size="42" />
         <div>
           <div class="brand-title">破茧之声</div>
-          <div class="brand-sub">居家康复 · 医疗随访</div>
+          <div class="brand-sub">星星的孩子 · 居家康复</div>
         </div>
-      </div>
+      </router-link>
 
       <nav class="nav">
         <router-link
@@ -44,19 +57,7 @@ function signOut() {
           class="nav-item"
           :class="{ active: route.name === item.name }"
         >
-          <svg v-if="item.icon === 'chat'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-            <path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8Z" stroke-linejoin="round" />
-          </svg>
-          <svg v-else-if="item.icon === 'play'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-            <circle cx="12" cy="12" r="9" /><path d="M10 8.5 16 12l-6 3.5v-7Z" stroke-linejoin="round" />
-          </svg>
-          <svg v-else-if="item.icon === 'chart'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-            <path d="M4 19V5M4 19h16" stroke-linecap="round" />
-            <path d="M8 15v-4M12 15V8M16 15v-6" stroke-linecap="round" />
-          </svg>
-          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-            <circle cx="12" cy="8" r="3.4" /><path d="M5 20c.7-3.3 3.5-5 7-5s6.3 1.7 7 5" stroke-linecap="round" />
-          </svg>
+          <AppIcon :name="item.icon" :size="19" />
           <span>{{ item.label }}</span>
         </router-link>
       </nav>
@@ -81,10 +82,30 @@ function signOut() {
       </div>
     </aside>
 
-    <main class="main">
-      <router-view :key="current" />
-    </main>
-  </div>
+    <div class="shell-main">
+      <header class="topbar">
+        <div>
+          <div class="topbar-title">{{ pageTitle }}</div>
+          <div v-if="pageSub" class="topbar-sub">{{ pageSub }}</div>
+        </div>
+        <div class="topbar-actions">
+          <span class="badge">
+            <AppIcon name="sun" :size="13" />
+            {{ dateLabel }}
+          </span>
+          <router-link v-if="!store.children.length" class="badge primary" to="/children">
+            添加孩子档案
+          </router-link>
+          <span v-else class="badge primary">
+            <AppIcon name="heart" :size="13" />
+            {{ store.children.find((item) => item.id === store.childId)?.nickname || '未选择' }}
+          </span>
+        </div>
+      </header>
 
-  <router-view v-else />
+      <main class="content">
+        <router-view :key="route.name" />
+      </main>
+    </div>
+  </div>
 </template>

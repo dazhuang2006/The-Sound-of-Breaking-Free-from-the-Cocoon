@@ -136,6 +136,8 @@ class MockLLM(LLMClient):
             text = _mock_qa(context)
         elif task == "summary":
             text = _mock_summary(context)
+        elif task == "followup_draft":
+            text = _mock_followup_draft(context)
         elif task == "assess":
             text = json.dumps(
                 {"appropriate": bool(context.get("appropriate", False)), "reason": "规则评估"},
@@ -184,6 +186,47 @@ def _mock_qa(context: dict[str, Any]) -> str:
         lines.append("")
         lines.append(f"另外提醒：{caution}")
     return "\n".join(lines)
+
+
+def _mock_followup_draft(context: dict[str, Any]) -> str:
+    """离线模板：只按关键词把家长原话分桶，不推断任何未说出的信息。"""
+    raw = str(context.get("transcription") or "").strip()
+    buckets: dict[str, list[str]] = {
+        "daily_activities": [],
+        "training_content": [],
+        "behavior_observations": [],
+        "emotional_state": [],
+        "communication_performance": [],
+        "parent_notes": [],
+    }
+    rules = (
+        ("training_content", ("训练", "练习", "完成", "卡片", "拼图", "任务")),
+        ("emotional_state", ("情绪", "开心", "高兴", "哭", "生气", "焦虑", "平静", "崩溃", "烦躁")),
+        (
+            "communication_performance",
+            ("说", "表达", "沟通", "回应", "指", "语言", "打招呼", "再见", "谢谢"),
+        ),
+        ("behavior_observations", ("行为", "刻板", "重复", "打", "咬", "跑", "躺", "捂耳", "尖叫")),
+        ("daily_activities", ("今天", "去了", "玩", "吃饭", "睡", "出门", "幼儿园", "公园", "超市")),
+    )
+    for sentence in re.split(r"[。！？!?；;\n]+", raw):
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+        for key, keywords in rules:
+            if any(word in sentence for word in keywords):
+                buckets[key].append(sentence)
+                break
+        else:
+            buckets["parent_notes"].append(sentence)
+    payload = {
+        "date": None,
+        **{
+            key: ("。".join(values) + "。" if values else None)
+            for key, values in buckets.items()
+        },
+    }
+    return json.dumps(payload, ensure_ascii=False)
 
 
 def _mock_summary(context: dict[str, Any]) -> str:

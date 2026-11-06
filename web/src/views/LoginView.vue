@@ -4,6 +4,8 @@ import { useRouter } from 'vue-router'
 import { authApi } from '../api'
 import { apiError } from '../api/client'
 import { loadChildren, setToken, store } from '../store'
+import AppIcon from '../components/AppIcon.vue'
+import BrandMark from '../components/BrandMark.vue'
 
 const router = useRouter()
 const mode = ref('login')
@@ -28,7 +30,7 @@ async function submit() {
     setToken(data.access_token)
     store.user = data.user
     await loadChildren()
-    router.push({ name: 'chat' })
+    router.push({ name: 'dashboard' })
   } catch (e) {
     error.value = apiError(e)
   } finally {
@@ -47,12 +49,16 @@ function fillDemo() {
   <div class="login-page">
     <div class="login-card">
       <section class="login-art">
-        <div class="brand-mark">破</div>
+        <BrandMark :size="64" />
         <h1>破茧之声</h1>
-        <p>为自闭症谱系儿童家庭准备的居家康复助手。<br />把专业知识拆成今天就能做的一小步。</p>
+        <p>
+          为自闭症谱系儿童家庭准备的居家康复助手。<br />
+          把专业知识拆成今天就能做的一小步。
+        </p>
         <ul>
           <li>知识库检索，回答标注来源</li>
           <li>六类情景沟通训练，分层提示不逼迫</li>
+          <li>2D 情景模拟，孩子可以自己走进去练</li>
           <li>每日记录与阶段随访小结</li>
           <li>医疗安全规则拦截，不越界诊断</li>
         </ul>
@@ -60,6 +66,11 @@ function fillDemo() {
       </section>
 
       <section class="login-form">
+        <div>
+          <h2 style="font-size: 20px; font-weight: 700">欢迎回来</h2>
+          <p class="hint" style="margin-top: 2px">星星的孩子 · 用心温暖每一颗独一无二的星星</p>
+        </div>
+
         <div class="login-tabs">
           <button :class="{ active: mode === 'login' }" @click="mode = 'login'">登录</button>
           <button :class="{ active: mode === 'register' }" @click="mode = 'register'">注册</button>
@@ -67,11 +78,24 @@ function fillDemo() {
 
         <div class="field">
           <label>用户名</label>
-          <input v-model="form.username" class="input" autocomplete="username" placeholder="字母、数字或下划线" @keyup.enter="submit" />
+          <input
+            v-model="form.username"
+            class="input"
+            autocomplete="username"
+            placeholder="字母、数字或下划线"
+            @keyup.enter="submit"
+          />
         </div>
         <div class="field">
           <label>密码</label>
-          <input v-model="form.password" class="input" type="password" autocomplete="current-password" placeholder="至少 6 位" @keyup.enter="submit" />
+          <input
+            v-model="form.password"
+            class="input"
+            type="password"
+            autocomplete="current-password"
+            placeholder="至少 6 位"
+            @keyup.enter="submit"
+          />
         </div>
         <div v-if="mode === 'register'" class="field">
           <label>称呼</label>
@@ -80,13 +104,14 @@ function fillDemo() {
 
         <div v-if="error" class="error">{{ error }}</div>
 
-        <button class="btn" :disabled="busy || !form.username || !form.password" @click="submit">
+        <button class="btn block" :disabled="busy || !form.username || !form.password" @click="submit">
+          <AppIcon name="arrowRight" :size="16" />
           {{ busy ? '请稍候…' : mode === 'login' ? '进入破茧之声' : '创建账号并进入' }}
         </button>
 
         <div class="demo-tip">
-          演示账号：<b>demo / demo123456</b>（需先运行 <code>python -m scripts.seed_demo</code>）
-          <a href="#" style="color: var(--accent-dark)" @click.prevent="fillDemo">一键填入</a>
+          演示账号：<b>demo / demo123456</b>
+          <a href="#" style="color: var(--color-primary-hover)" @click.prevent="fillDemo">一键填入</a>
         </div>
       </section>
     </div>

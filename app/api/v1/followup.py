@@ -10,7 +10,10 @@ from app.schemas.followup import (
     FollowupRecordOut,
     FollowupSummaryOut,
     FollowupSummaryRequest,
+    VoiceDraftRequest,
+    VoiceDraftResponse,
 )
+from app.services.followup import DraftGenerationError
 
 router = APIRouter(prefix="/followup", tags=["家庭随访"])
 
@@ -39,6 +42,26 @@ async def list_records(
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return [FollowupRecordOut.model_validate(item) for item in records]
+
+
+@router.post("/voice-draft", response_model=VoiceDraftResponse)
+async def voice_draft(
+    payload: VoiceDraftRequest, db: DbSession, user: CurrentUser, services: ServicesDep
+) -> VoiceDraftResponse:
+    """把家长确认后的转写文本整理成结构化草稿；此接口不写数据库。"""
+    text = payload.transcription.strip()
+    if not text:
+        raise HTTPException(status_code=422, detail="转写文本不能为空")
+    if payload.child_id is not None:
+        try:
+            await services.followup.ensure_child(db, user.id, payload.child_id)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+    try:
+        draft, provider, mocked = await services.followup.draft_from_transcription(text)
+    except DraftGenerationError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return VoiceDraftResponse(draft=draft, provider=provider, mocked=mocked)
 
 
 @router.post("/summary", response_model=FollowupSummaryOut, status_code=status.HTTP_201_CREATED)

@@ -6,22 +6,28 @@
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.core.logging import get_logger
 from app.db.models import Child, FollowupRecord, FollowupSummary
-from app.schemas.followup import FollowupRecordCreate
+from app.schemas.followup import FollowupRecordCreate, VoiceDraft
 from app.services.llm import LLMClient, LLMError
 from app.services.safety import ensure_disclaimer, review_output
 
 logger = get_logger(__name__)
+
+
+class DraftGenerationError(RuntimeError):
+    """AI 草稿生成失败（模型不可用或返回格式不合法）。"""
 
 
 @dataclass
@@ -173,6 +179,40 @@ class FollowupService:
         await db.flush()
         return SummaryResult(summary=summary, metrics=metrics)
 
+    # ------------------------------------------------------------ AI 草稿
+    async def ensure_child(self, db: AsyncSession, user_id: int, child_id: int) -> Child:
+        return await self._require_child(db, user_id, child_id)
+
+    async def draft_from_transcription(self, transcription: str) -> tuple[VoiceDraft, str, bool]:
+        """把家长口述整理成结构化草稿；只整理，不落库、不推断。"""
+        text = transcription.strip()
+        if not text:
+            raise ValueError("转写文本不能为空")
+
+        from app.agents.prompts import VOICE_DRAFT_SYSTEM, VOICE_DRAFT_USER
+
+        prompt = VOICE_DRAFT_SYSTEM + "\n\n" + VOICE_DRAFT_USER.format(transcription=text)
+        try:
+            response = await self.llm.chat(
+                [{"role": "user", "content": prompt}],
+                task="followup_draft",
+                context={"transcription": text},
+                temperature=0.1,
+                json_mode=True,
+            )
+        except LLMError as exc:
+            raise DraftGenerationError("AI 整理服务暂不可用，请稍后重试") from exc
+
+        payload = _extract_json(response.text)
+        if payload is None:
+            raise DraftGenerationError("AI 返回内容不是合法 JSON，请重试")
+        try:
+            draft = VoiceDraft.model_validate(payload)
+        except ValidationError as exc:
+            raise DraftGenerationError("AI 草稿字段不完整，请重试") from exc
+        draft.date = _normalize_date(draft.date)
+        return draft, response.provider, response.mocked
+
     async def recent_context(self, db: AsyncSession, child_id: int, days: int = 7) -> str:
         since = datetime.now(UTC).date() - timedelta(days=days)
         stmt = (
@@ -247,6 +287,35 @@ _RECORD_PATTERNS = {
     "sleep": re.compile(r"(?:睡眠|睡了|睡觉)\D{0,6}(\d+(?:\.\d+)?)\s*(?:小时|h|H)"),
     "completion": re.compile(r"(?:完成|做完|完成度)\D{0,6}(\d{1,3})\s*(?:%|％|百分)"),
 }
+
+
+def _extract_json(text: str) -> dict[str, Any] | None:
+    """从模型输出中取出第一个 JSON 对象，兼容 ```json 代码块。"""
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```[a-zA-Z]*\s*", "", cleaned)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start < 0 or end <= start:
+        return None
+    try:
+        payload = json.loads(cleaned[start : end + 1])
+    except json.JSONDecodeError:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _normalize_date(value: str | None) -> str | None:
+    if not value:
+        return None
+    text = str(value).strip()
+    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d"):
+        try:
+            return datetime.strptime(text, fmt).date().isoformat()
+        except ValueError:
+            continue
+    return None
 
 
 def parse_record_message(message: str) -> dict[str, Any] | None:

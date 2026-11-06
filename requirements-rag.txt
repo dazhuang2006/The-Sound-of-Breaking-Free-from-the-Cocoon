@@ -1,5 +1,6 @@
-# 本地大模型嵌入（可选，体积较大）
-# pip install -r requirements-rag.txt 后将 EMBEDDING_PROVIDER 设为 bge-m3
+# Optional local embedding model (large download).
+# After: pip install -r requirements-rag.txt
+# set EMBEDDING_PROVIDER=bge-m3 in .env
 FlagEmbedding>=1.2.10
 torch>=2.2
 transformers>=4.40

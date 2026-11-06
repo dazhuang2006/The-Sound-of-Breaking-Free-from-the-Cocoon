@@ -10,12 +10,16 @@ from app.core.config import Settings, get_settings
 from app.core.logging import get_logger
 from app.db.base import get_session_factory
 from app.db.models import KnowledgeDoc
+from app.services.asr import ASRProvider, build_asr
 from app.services.cache import CacheBackend, build_cache
 from app.services.embeddings import Embedder, build_embedder
 from app.services.followup import FollowupService
 from app.services.knowledge import KnowledgeBase, load_markdown_documents, split_document
 from app.services.llm import LLMClient, build_llm
 from app.services.training import TrainingService
+from app.services.training_judge import TrainingJudge
+from app.services.training_world import TrainingWorldService
+from app.services.tts import TTSProvider, build_tts
 from app.services.vectorstore import VectorStore, build_vector_store
 
 logger = get_logger(__name__)
@@ -31,6 +35,10 @@ class Services:
     cache: CacheBackend
     training: TrainingService
     followup: FollowupService
+    asr: ASRProvider
+    tts: TTSProvider
+    training_judge: TrainingJudge
+    training_world: TrainingWorldService
     graph: Any = None
 
 
@@ -50,15 +58,21 @@ async def build_services(settings: Settings | None = None) -> Services:
         cache=cache,
         training=TrainingService(settings),
         followup=FollowupService(llm, settings),
+        asr=build_asr(settings),
+        tts=build_tts(settings),
+        training_judge=TrainingJudge(llm, settings),
+        training_world=TrainingWorldService(),
     )
     services.graph = build_graph()
     await _bootstrap_knowledge(services)
     logger.info(
-        "服务就绪｜LLM=%s 嵌入=%s 向量库=%s 缓存=%s 知识块=%d",
+        "服务就绪｜LLM=%s 嵌入=%s 向量库=%s 缓存=%s ASR=%s TTS=%s 知识块=%d",
         llm.provider,
         embedder.name,
         store.name,
         cache.name,
+        services.asr.name,
+        services.tts.name,
         await kb.count(),
     )
     return services

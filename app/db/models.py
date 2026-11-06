@@ -116,6 +116,29 @@ class TrainingSession(Base):
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class TrainingWorldState(Base):
+    """2D 游戏存档：房间、坐标、已观察热点与操作流水。
+
+    与 TrainingSession 一一对应（同一次训练同时拥有文字流程与游戏流程），
+    因此 step_index 以 TrainingSession 为准，这里只保存空间侧的进度。
+    """
+
+    __tablename__ = "training_world_states"
+
+    training_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("training_sessions.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    scenario: Mapped[str] = mapped_column(String(32))
+    scene: Mapped[str] = mapped_column(String(32))
+    player: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    visited: Mapped[list[str]] = mapped_column(JSON, default=list)
+    actions: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+
 class FollowupRecord(Base):
     __tablename__ = "followup_records"
     __table_args__ = (Index("ix_followup_child_date", "child_id", "record_date"),)
@@ -177,6 +200,7 @@ __all__ = [
     "ChatSession",
     "ChatMessage",
     "TrainingSession",
+    "TrainingWorldState",
     "FollowupRecord",
     "FollowupSummary",
     "SafetyEvent",

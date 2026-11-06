@@ -90,3 +90,20 @@ async def end_training(
     view = await services.training.finish(db, session)
     await db.commit()
     return _turn(view)
+
+
+@router.post("/{training_id}/abort", response_model=TrainingTurn)
+async def abort_training(
+    training_id: str, db: DbSession, user: CurrentUser, services: ServicesDep
+) -> TrainingTurn:
+    """放弃一次训练（例如刚进场景就退出、什么都没练）。
+
+    与 /end 的区别：不生成小结，状态记为 aborted，不会在「继续上次」里出现。
+    """
+    try:
+        session = await services.training.get(db, user.id, training_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    view = await services.training.abort(db, session, "家长退出了本次训练")
+    await db.commit()
+    return _turn(view)
