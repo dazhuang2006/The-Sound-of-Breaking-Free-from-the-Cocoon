@@ -1,0 +1,1119 @@
+/* ============================================================
+   2D 情景游戏 · 马卡龙手绘风
+   ============================================================ */
+
+.game-page {
+  --ink: #4a3f4a;
+  --pink: #f7c6d0;
+  --mint: #cdeee2;
+  --blue: #cfe7f8;
+  --yellow: #fbe7ae;
+  --cream: #fffaf3;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background:
+    radial-gradient(900px 520px at 12% 0%, #fdecef 0%, transparent 60%),
+    radial-gradient(800px 480px at 92% 8%, #e4f6ef 0%, transparent 58%),
+    linear-gradient(180deg, #fffaf4, #fbf3ec);
+  color: var(--ink);
+}
+
+.game-loading {
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  color: #7d7268;
+}
+
+/* ---------------- 选关 ---------------- */
+.game-pick {
+  padding: 26px 30px 40px;
+}
+
+.pick-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.pick-head .page-desc {
+  max-width: 720px;
+  line-height: 1.8;
+}
+
+.game-brandbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.game-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.game-brand .brand-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  font-size: 18px;
+}
+
+.game-brand .brand-title {
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.game-brand .brand-sub {
+  font-size: 11px;
+  color: #8c786a;
+  letter-spacing: 0.3px;
+}
+
+.game-brand-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.game-pick {
+  max-width: 1240px;
+  margin: 0 auto;
+}
+
+.resume-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: linear-gradient(120deg, #fff6e3, #fdeff3);
+  border: 2px dashed #e9b98d;
+  border-radius: 18px;
+  padding: 14px 18px;
+  margin-bottom: 18px;
+}
+
+.resume-card b {
+  font-size: 15px;
+}
+
+.resume-card p {
+  font-size: 13px;
+  color: #7d7268;
+  margin-top: 2px;
+}
+
+.resume-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.level-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(258px, 1fr));
+  gap: 16px;
+}
+
+.level-card {
+  text-align: left;
+  padding: 0;
+  border: 1px solid #efe1d4;
+  border-radius: 20px;
+  background: #fffdfa;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.18s cubic-bezier(0.22, 0.61, 0.36, 1), box-shadow 0.18s,
+    border-color 0.18s;
+  box-shadow: 0 4px 14px rgba(73, 61, 53, 0.06);
+}
+
+.level-card:hover:not(:disabled) {
+  transform: translateY(-3px);
+  border-color: #ddaa8c;
+  box-shadow: 0 16px 34px rgba(73, 61, 53, 0.12);
+}
+
+.level-card:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.level-thumb {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: #fbf3ea;
+  border-bottom: 1px solid #efe1d4;
+}
+
+.game-thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.level-badge {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #efe1d4;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #6f5d4f;
+  box-shadow: 0 2px 6px rgba(73, 61, 53, 0.08);
+}
+
+.level-body {
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.level-body h3 {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.level-body p {
+  font-size: 12.8px;
+  color: #8c786a;
+  line-height: 1.7;
+  min-height: 44px;
+}
+
+.level-meta {
+  display: flex;
+  gap: 6px;
+  font-size: 11.5px;
+  color: #a08c7c;
+}
+
+.level-go {
+  margin-top: auto;
+  font-size: 13px;
+  font-weight: 650;
+  color: #c98f70;
+}
+
+/* ---------------- 游戏中：顶栏 ---------------- */
+.game-topbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 16px;
+  background: rgba(255, 253, 250, 0.94);
+  border-bottom: 2px solid rgba(74, 63, 74, 0.12);
+  backdrop-filter: blur(6px);
+  flex-wrap: wrap;
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 220px;
+}
+
+.game-page .topbar-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topbar-scene {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #6d8a7d;
+  background: var(--mint);
+  border-radius: 999px;
+  padding: 1px 9px;
+}
+
+.game-page .topbar-sub {
+  font-size: 11.5px;
+  color: #8a7d72;
+  margin-top: 1px;
+}
+
+.topbar-mid {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.step-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #ecdcd2;
+  border: 2px solid #4a3f4a22;
+}
+
+.step-dot.done {
+  background: #f2a9bc;
+  border-color: #c9684a;
+}
+
+.step-text {
+  font-size: 12px;
+  color: #8a7d72;
+  margin-left: 4px;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.game-page .chip {
+  border: 2px solid rgba(74, 63, 74, 0.14);
+  background: #fff;
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 12px;
+  color: #6b6055;
+  transition: background 0.15s;
+}
+
+.game-page .chip:hover {
+  background: #fdf2ea;
+}
+
+.game-page .chip.ghost {
+  background: transparent;
+}
+
+.game-page .chip.on {
+  background: var(--mint);
+  border-color: transparent;
+  color: #37695c;
+}
+
+.game-page .icon-btn {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid rgba(74, 63, 74, 0.14);
+  background: #fff;
+  color: #4a3f4a;
+  padding: 0;
+}
+
+.game-page .icon-btn.ghost {
+  background: transparent;
+}
+
+.game-page .icon-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ---------------- 舞台 ---------------- */
+.game-main {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.stage-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  padding: 2px 8px 0;
+  transition: opacity 0.25s;
+}
+
+.stage-wrap.fading {
+  opacity: 0.25;
+}
+
+.game-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.stage-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.entity .hit {
+  cursor: pointer;
+  pointer-events: all;
+}
+
+.prop-sprite,
+.character-sprite {
+  pointer-events: none;
+}
+
+.name-tag {
+  pointer-events: none;
+}
+
+.focus-ring ellipse:first-child {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ring-pulse 1.7s ease-in-out infinite;
+}
+
+.focus-arrow {
+  pointer-events: none;
+  animation: arrow-bob 1.15s ease-in-out infinite;
+}
+
+@keyframes ring-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.07);
+  }
+}
+
+@keyframes arrow-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(7px);
+  }
+}
+
+.progress-bar {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  top: 3px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(74, 63, 74, 0.1);
+  overflow: hidden;
+  opacity: 0.9;
+}
+
+.progress-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f7c6d0, #f2a9bc, #e89ab0);
+  transition: width 0.35s;
+}
+
+/* ---------------- 任务卡 ---------------- */
+.task-card {
+  position: absolute;
+  left: 18px;
+  top: 14px;
+  width: 246px;
+  background: rgba(255, 253, 249, 0.94);
+  border: 2.5px solid var(--ink);
+  border-radius: 16px;
+  padding: 10px 13px 10px;
+  box-shadow: 0 7px 0 rgba(74, 63, 74, 0.1);
+  z-index: 4;
+}
+
+.task-card.complete {
+  border-color: #79b79c;
+}
+
+.task-kicker {
+  font-size: 11px;
+  color: #9a8b7e;
+  letter-spacing: 0.4px;
+}
+
+.task-text {
+  font-size: 14.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+.task-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.mini-btn {
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--yellow);
+  padding: 3px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #5c4b2c;
+}
+
+.mini-btn:hover {
+  background: #fbe0a0;
+}
+
+.task-explore {
+  font-size: 11px;
+  color: #9a8b7e;
+}
+
+/* ---------------- 气泡 ---------------- */
+.stage-bubbles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.game-bubble {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  max-width: 250px;
+  min-width: 74px;
+  background: #fffdfa;
+  border: 2.5px solid var(--ink);
+  border-radius: 16px;
+  padding: 8px 12px 9px;
+  box-shadow: 0 7px 16px rgba(74, 63, 74, 0.18);
+  animation: bubble-in 0.18s ease-out;
+}
+
+.game-bubble::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  width: 13px;
+  height: 13px;
+  transform: translateX(-50%) rotate(45deg);
+  background: inherit;
+  border-right: 2.5px solid var(--ink);
+  border-bottom: 2.5px solid var(--ink);
+}
+
+.bubble-name {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #b06a86;
+  margin-bottom: 1px;
+}
+
+.bubble-text {
+  font-size: 13.5px;
+  line-height: 1.55;
+  font-weight: 550;
+  word-break: break-word;
+}
+
+.game-bubble.praise {
+  background: #eafaf2;
+  border-color: #5f9b83;
+}
+
+.game-bubble.praise .bubble-name {
+  color: #3f7a63;
+}
+
+.game-bubble.soft {
+  background: #f7f1e8;
+}
+
+.game-bubble.note {
+  background: #fff6e4;
+}
+
+.game-bubble.player {
+  background: #e8f4fd;
+  border-color: #5b8fb3;
+}
+
+.game-bubble.player .bubble-name {
+  color: #3f7093;
+}
+
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -92%) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -100%) scale(1);
+  }
+}
+
+/* ---------------- 底部：作答（教练条浮在场景上） ---------------- */
+.game-bottom {
+  padding: 5px 16px 8px;
+  background: rgba(255, 253, 250, 0.96);
+  border-top: 2px solid rgba(74, 63, 74, 0.12);
+}
+
+.game-coach {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 10px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  pointer-events: none;
+}
+
+.game-coach > * {
+  pointer-events: auto;
+}
+
+.coach-strip {
+  width: min(920px, 100%);
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: rgba(255, 251, 245, 0.97);
+  border: 2.5px solid var(--ink);
+  border-radius: 16px;
+  padding: 7px 13px 8px;
+  box-shadow: 0 10px 26px rgba(74, 63, 74, 0.16);
+  backdrop-filter: blur(4px);
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.said-line {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 2px 0 0;
+  padding: 2px 11px 2px 3px;
+  background: #e9f5fd;
+  border: 2px solid #7fb3d4;
+  border-radius: 999px;
+  font-size: 12.5px;
+  color: #2f5f7d;
+  max-width: min(520px, 100%);
+}
+
+.said-label {
+  background: #7fb3d4;
+  color: #fff;
+  border-radius: 999px;
+  padding: 1px 9px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.said-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.coach-avatar {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--pink);
+  border: 2px solid var(--ink);
+  font-weight: 700;
+  font-size: 12.5px;
+}
+
+.coach-body {
+  min-width: 0;
+}
+
+.coach-title {
+  font-size: 11px;
+  color: #9a8b7e;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.coach-text {
+  font-size: 14px;
+  line-height: 1.52;
+  font-weight: 550;
+  margin-top: 1px;
+  white-space: pre-wrap;
+}
+
+.coach-strip.hint {
+  background: linear-gradient(120deg, #fff7e2, #fffdf5);
+  border-color: #d9a441;
+}
+
+.coach-strip.demo {
+  background: linear-gradient(120deg, #eef7ff, #fcfeff);
+  border-color: #5b8fb3;
+}
+
+.coach-strip.safety {
+  background: linear-gradient(120deg, #fdeceb, #fff7f6);
+  border-color: #c0503f;
+}
+
+.game-page .speak-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(74, 63, 74, 0.2);
+  background: #fff;
+  color: #7d7268;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+}
+
+.game-page .speak-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ---------------- 作答面板 ---------------- */
+.game-composer {
+  margin-top: 6px;
+}
+
+.composer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.composer-input {
+  flex: 1;
+  resize: none;
+  border: 2.5px solid var(--ink);
+  border-radius: 13px;
+  padding: 8px 14px;
+  font-size: 14px;
+  line-height: 1.4;
+  background: #fff;
+  outline: none;
+  min-height: 40px;
+  max-height: 92px;
+}
+
+.composer-input:focus {
+  border-color: #e08aa2;
+  box-shadow: 0 0 0 3px rgba(240, 160, 184, 0.18);
+}
+
+.mic-btn {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 2.5px solid var(--ink);
+  background: var(--mint);
+  color: #37695c;
+  display: grid;
+  place-items: center;
+}
+
+.mic-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+.mic-btn.recording {
+  background: #f2a9bc;
+  color: #fff;
+  animation: mic-pulse 1s infinite;
+}
+
+.mic-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.rec-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.rec-spin {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2.5px solid #9bd3bf;
+  border-top-color: #37695c;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes mic-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(242, 169, 188, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 7px rgba(242, 169, 188, 0);
+  }
+}
+
+.send-btn {
+  flex: none;
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 2.5px solid var(--ink);
+  background: var(--yellow);
+  font-weight: 700;
+  font-size: 14px;
+  color: #5c4b2c;
+  transition: transform 0.12s, background 0.15s;
+}
+
+.send-btn:hover:not(:disabled) {
+  background: #fbe0a0;
+}
+
+.send-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.gesture-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-top: 7px;
+}
+
+.gesture-label {
+  font-size: 11.5px;
+  color: #9a8b7e;
+}
+
+.gesture-btn {
+  border: 2px solid rgba(74, 63, 74, 0.3);
+  background: #eaf7f1;
+  border-radius: 999px;
+  padding: 3px 13px;
+  font-size: 12.5px;
+  color: #3f6b5c;
+}
+
+.gesture-btn:hover:not(:disabled) {
+  background: #d9f0e6;
+}
+
+.gesture-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.composer-lock {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff6e4;
+  border: 2px dashed #e3b96f;
+  border-radius: 12px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  color: #8a6a2f;
+  margin-bottom: 8px;
+}
+
+.composer-notice {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: #4b8a71;
+}
+
+.recording-tip {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: #b06a86;
+}
+
+.composer-error {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #b3382a;
+  background: #fbe6e2;
+  border-radius: 10px;
+  padding: 6px 10px;
+}
+
+/* ---------------- 提示 / 完成 / 记录 ---------------- */
+.game-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 118px;
+  transform: translateX(-50%);
+  background: rgba(61, 48, 60, 0.88);
+  color: #fff;
+  border-radius: 999px;
+  padding: 7px 18px;
+  font-size: 13.5px;
+  z-index: 8;
+  animation: toast-in 0.22s ease-out;
+  pointer-events: none;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.done-page {
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+}
+
+.done-card {
+  width: min(680px, 100%);
+  background: #fffdfa;
+  border: 2.5px solid var(--ink);
+  border-radius: 24px;
+  padding: 26px 30px 24px;
+  box-shadow: 0 12px 0 rgba(74, 63, 74, 0.1);
+  text-align: center;
+}
+
+.done-stars {
+  font-size: 34px;
+  color: #e6dbd2;
+  letter-spacing: 6px;
+}
+
+.done-stars .lit {
+  color: #f3b94e;
+  text-shadow: 0 3px 0 rgba(243, 185, 78, 0.25);
+}
+
+.done-card h2 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 4px 0 6px;
+}
+
+.done-sub {
+  font-size: 13px;
+  color: #7d7268;
+}
+
+.done-summary {
+  text-align: left;
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 12.8px;
+  line-height: 1.8;
+  color: #4f4740;
+  background: #fbf5ec;
+  border: 1px dashed #e2d2bf;
+  border-radius: 16px;
+  padding: 14px 16px;
+  margin: 16px 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.done-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.log-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(43, 38, 34, 0.45);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  z-index: 60;
+}
+
+.log-panel {
+  width: min(560px, 100%);
+  max-height: 80vh;
+  background: #fffdfa;
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid #eee3d8;
+}
+
+.log-head h3 {
+  font-size: 15.5px;
+  font-weight: 650;
+}
+
+.log-body {
+  padding: 14px 18px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.log-line {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.log-line b {
+  flex: none;
+  color: #9a8b7e;
+  font-weight: 600;
+  font-size: 11.5px;
+  padding-top: 2px;
+  width: 32px;
+}
+
+.log-line.child b {
+  color: #4b8a71;
+}
+
+.log-line.hint b {
+  color: #b07c1f;
+}
+
+/* ---------------- 窄屏 ---------------- */
+@media (max-width: 1100px) {
+  .task-card {
+    width: 206px;
+    padding: 9px 11px;
+  }
+  .task-text {
+    font-size: 13px;
+  }
+  .coach-text {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 860px) {
+  .game-pick {
+    padding: 18px 16px 28px;
+  }
+  .game-topbar {
+    padding: 6px 10px;
+  }
+  .topbar-sub {
+    display: none;
+  }
+  .topbar-mid {
+    order: 3;
+    width: 100%;
+    margin-left: 0;
+  }
+  .stage-wrap {
+    padding: 2px 2px 0;
+  }
+  .task-card {
+    left: 10px;
+    top: 10px;
+    width: 172px;
+    padding: 8px 10px;
+  }
+  .task-text {
+    font-size: 12.5px;
+  }
+  .game-coach {
+    left: 8px;
+    right: 8px;
+    bottom: 6px;
+  }
+  .coach-strip {
+    padding: 6px 10px 7px;
+    border-radius: 13px;
+  }
+  .coach-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 8px;
+    font-size: 11px;
+  }
+  .coach-title {
+    font-size: 10px;
+  }
+  .coach-text {
+    font-size: 12.5px;
+    line-height: 1.45;
+  }
+  .game-bottom {
+    padding: 6px 10px 10px;
+  }
+  .game-bubble {
+    max-width: 190px;
+  }
+  .bubble-text {
+    font-size: 12.5px;
+  }
+  .game-toast {
+    bottom: 104px;
+  }
+}
