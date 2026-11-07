@@ -1,0 +1,12 @@
+# Optional local ASR (FunASR). Large install: PyTorch + torchaudio + model weights.
+# Usage:
+#   pip install torch torchaudio
+#   pip install -r requirements-asr.txt
+#   set ASR_PROVIDER=funasr in .env (and optionally ASR_VAD_MODEL / ASR_PUNC_MODEL)
+#
+# Python 3.13 is not recommended for FunASR yet; use Python 3.10-3.12.
+# The model is downloaded on first transcription, not at install time.
+funasr>=1.1
+modelscope>=1.16
+torch>=2.2
+torchaudio>=2.2
