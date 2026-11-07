@@ -64,7 +64,7 @@ class ChatService:
                 "db": db,
                 "user": user,
             },
-            "recursion_limit": 15,
+            "recursion_limit": 30,
         }
         try:
             result = await services.graph.ainvoke(state, config=config)

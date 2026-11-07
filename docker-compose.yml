@@ -2,9 +2,14 @@ name: pojian-voice
 
 services:
   api:
-    build: .
+    build:
+      context: .
+      args:
+        # 国内服务器可在 .env 里覆盖这两个值，构建时走国内镜像源
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
     ports:
-      - "${API_HOST_PORT:-8000}:8000"
+      - "${API_HOST_PORT:-8000}:8080"
     environment:
       ENV: prod
       SECRET_KEY: "${SECRET_KEY:?please set SECRET_KEY in .env}"
@@ -17,6 +22,19 @@ services:
       MILVUS_URI: http://milvus:19530
       AUTO_CREATE_TABLES: "true"
       CORS_ORIGINS: http://localhost:8000
+      # 语音识别（云端 OpenAI 兼容接口；默认 disabled，在 .env 中配置启用）
+      ASR_PROVIDER: ${ASR_PROVIDER:-disabled}
+      ASR_HTTP_URL: ${ASR_HTTP_URL:-}
+      ASR_HTTP_API_KEY: ${ASR_HTTP_API_KEY:-}
+      ASR_HTTP_MODEL: ${ASR_HTTP_MODEL:-whisper-1}
+      ASR_LANGUAGE: ${ASR_LANGUAGE:-zh}
+      ASR_HTTP_TRUST_ENV: ${ASR_HTTP_TRUST_ENV:-false}
+      # 语音合成（硅基流动 CosyVoice2；默认 disabled，在 .env 中配置启用）
+      TTS_PROVIDER: ${TTS_PROVIDER:-disabled}
+      TTS_MODEL: ${TTS_MODEL:-FunAudioLLM/CosyVoice2-0.5B}
+      TTS_VOICE: ${TTS_VOICE:-FunAudioLLM/CosyVoice2-0.5B:diana}
+      TTS_API_KEY: ${TTS_API_KEY:-}
+      TTS_TRUST_ENV: ${TTS_TRUST_ENV:-false}
     depends_on:
       mysql:
         condition: service_healthy

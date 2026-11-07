@@ -39,6 +39,12 @@ class ChatMeta(BaseModel):
     mocked: bool = False
     latency_ms: int = 0
     retrieved: int = 0
+    # ---- 自反思答疑子图的执行信息（供前端展示「思考过程」与 PPT 讲解）----
+    evidence_score: float = 0.0
+    retrieval_rounds: int = 0
+    revisions: int = 0
+    agent_steps: int = 0
+    agent_trace: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ChatResponse(BaseModel):

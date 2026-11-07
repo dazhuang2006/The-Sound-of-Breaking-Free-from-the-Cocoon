@@ -1608,6 +1608,22 @@ input[type="range"]::-moz-range-thumb {
 .chat-head h2 {
   font-size: 16px;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.chat-head > div {
+  min-width: 0;
+}
+
+.chat-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: min(54vw, 560px);
 }
 
 .chat-head .sub {
@@ -2795,4 +2811,44 @@ html[data-reduce-motion="true"] *::after {
   animation-iteration-count: 1 !important;
   transition-duration: 0.001ms !important;
   scroll-behavior: auto !important;
+}
+
+/* ---- Agent 执行轨迹（自反思答疑子图） ---- */
+.agent-trace {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.agent-trace summary {
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.agent-trace summary::-webkit-details-marker {
+  display: none;
+}
+
+.agent-trace ol {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 5px;
+}
+
+.agent-trace li {
+  line-height: 1.5;
+}
+
+.agent-trace .trace-node {
+  display: inline-block;
+  min-width: 120px;
+  font-weight: 600;
+}
+
+.agent-trace .trace-detail {
+  color: var(--color-text-secondary);
 }

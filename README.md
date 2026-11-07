@@ -171,14 +171,14 @@ flowchart TB
 
 ## 4. LangGraph 工作流
 
-一个主图 + 三条业务分支 + 一条贯穿全流程的安全链路，**没有为了「多智能体」而拆 Agent**：
+一个主图（安全审核 + 意图路由）+ 一个**自反思答疑子图** + 训练/随访/闲聊分支，**没有为了「多智能体」而拆 Agent**：
 
 ```mermaid
 flowchart LR
     S((START)) --> AN["analyze<br/>意图识别 + 安全预检"]
 
     AN -->|急症 / 诊断 / 用药| SR["safety_response<br/>固定安全话术"]
-    AN -->|答疑| QA["qa<br/>混合检索 → 生成 → 输出审核"]
+    AN -->|答疑| QA["qa 子图<br/>规划 → 并行检索 → 证据评级<br/>→ 生成 → 自审 → 修订"]
     AN -->|开始训练| TS["training_start"]
     AN -->|训练中| TT["training_turn<br/>评价 → 分层提示 → 推进"]
     AN -->|结束训练| TE["training_end<br/>训练小结"]
@@ -196,13 +196,36 @@ flowchart LR
     CH --> E
 ```
 
+答疑子图是本项目最「像 Agent」的部分——**它会因为证据不足而重新检索，也会因为自审不过而重写答案**：
+
+```mermaid
+flowchart TD
+    P["plan_queries<br/>把问题拆成 2-3 条检索式"] --> R["retrieve_evidence<br/>asyncio.gather 并行召回 + 按 chunk 去重"]
+    R --> G["grade_evidence<br/>查全率 + 最高分"]
+    G -->|证据不足 且 轮次 < 2| W["rewrite_query<br/>换一批检索式，阈值放宽"]
+    W --> R
+    G -->|证据充足 / 已达上限| D["draft_answer<br/>模型失败则检索兜底"]
+    D --> C["self_critique<br/>长度 / 引用 / 相关性 / 证据"]
+    C -->|不达标 且 未修订过| V["revise_answer<br/>有模型用模型改，没有则确定性补丁"]
+    V --> C
+    C -->|通过| F["finalize_answer<br/>免责声明 + 引用 + 轨迹写入 meta"]
+```
+
+几条关键设计：
+
+- **规划可降级**：有真实模型时用 JSON 模式让模型拆检索式；`mock` 或模型失败时退化为规则拆句（同义扩展 + 分句），不会因为没 Key 就断链；
+- **真并行**：多条检索式同时召回，按 `chunk.id` 去重取最高分，而不是串行跑多次；
+- **两条回边都有上限**（检索 2 轮、修订 1 轮），图一定收敛，不会出现"自我反思到死循环"；
+- **自审是确定性规则**（回答长度、是否带 `[n]` 引用、与提问的词法重合度、是否有检索证据），不依赖模型自我评价，结果可复现；
+- **执行轨迹可展示**：每个节点把摘要写进 `state.trace`，最终随响应返回 `meta.agent_trace`，前端或 PPT 可以直接画出来。
+
 意图路由是可解释的规则，而不是让 LLM 猜：
 
 - 训练结束 / 开始 / 答疑切换 → 显式指令优先；
 - 当前会话存在进行中的训练 → 其余输入都视为训练回合（**训练绑定发起它的聊天会话，不会劫持其他会话**）；
 - 「记录」+ 至少两个可解析指标（情绪 1–5、睡眠小时、完成度 %）→ 随访记录；
 - 「阶段总结 / 周总结」→ 随访小结；
-- 其余 → RAG 答疑。
+- 其余 → 进入上面的答疑子图。
 
 每个节点只依赖注入进来的服务（`config["configurable"]`），因此可以直接对单个节点做单元测试，也可以把服务替换成桩实现。
 
@@ -322,8 +345,10 @@ cp .env.example .env        # 默认 mock LLM + hash 向量 + SQLite + 内存向
 python -m scripts.seed_demo # 演示账号 demo / demo123456、孩子档案、7 天记录
 
 python run.py               # 唯一需要执行的入口文件；默认 http://127.0.0.1:8000
-# 端口被占用时：PORT=8010 python run.py（Windows：$env:PORT=8010; python run.py）
-# 开发热重载：RELOAD=1 python run.py
+# 端口被占用会自动顺延，也可以指定：PORT=8010 python run.py（Windows：$env:PORT=8010; python run.py）
+# 开发热重载：RELOAD=1 python run.py（只监听 app/，不会因为 node_modules 或数据库文件变化而重载）
+# 其它可选：HOST=0.0.0.0（局域网访问）、WORKERS=4（多进程）、OPEN=1（就绪后自动开浏览器）、
+#          ACCESS_LOG=0（关闭访问日志）、PORT_SPAN=200（端口顺延范围）
 ```
 
 `run.py` 只做一件事：用 uvicorn 启动 `app/main.py` 里的 `app`。前后端一起访问
@@ -371,6 +396,9 @@ docker compose --profile vector up -d # 可选：etcd + minio + milvus
 访问 `http://localhost:${API_HOST_PORT:-8000}`（默认 8000；本机端口冲突时在 `.env` 里改
 `API_HOST_PORT`，示例值为 8080）。MySQL / Redis 的宿主机端口分别由 `MYSQL_HOST_PORT`、
 `REDIS_HOST_PORT` 控制。
+
+> 部署到云服务器（京东云 ECS / 任意 Linux）的完整清单——上传代码、`.env` 生产配置、
+> 端口放行、systemd 守护、常见报错对照——见 [docs/deploy.md](docs/deploy.md)。
 
 ### 6.4 密钥与配置管理
 

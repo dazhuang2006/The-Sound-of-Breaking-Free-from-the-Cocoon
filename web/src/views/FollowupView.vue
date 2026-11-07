@@ -3,7 +3,6 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { followupApi } from '../api'
 import { apiError } from '../api/client'
 import { store } from '../store'
-import VoiceRecorder from '../components/VoiceRecorder.vue'
 import AppIcon from '../components/AppIcon.vue'
 import StateBlock from '../components/StateBlock.vue'
 import TrendChart from '../components/TrendChart.vue'
@@ -249,7 +248,7 @@ const avgCompletion = computed(() => {
   <div class="page">
     <div class="page-head">
       <div>
-        <p class="page-desc">每天一两分钟记录情绪、睡眠与训练完成度；语音转写与 AI 草稿都可以修改，确认后才会写入记录。</p>
+        <p class="page-desc">每天一两分钟记录孩子的情绪、睡眠与训练完成度；写下的内容随时可以修改，确认后才会写入记录。</p>
       </div>
       <span v-if="!hasChild" class="badge amber">请先在「儿童档案」里选择孩子</span>
       <span v-else class="badge primary">当前：{{ store.children.find((item) => item.id === store.childId)?.nickname }}</span>
@@ -260,68 +259,7 @@ const avgCompletion = computed(() => {
 
     <div class="followup-layout">
       <div class="followup-col">
-        <section class="card">
-          <div class="card-head">
-            <div class="card-title"><AppIcon name="mic" :size="17" /> 语音记一条</div>
-            <span class="badge secondary">家长本人录音</span>
-          </div>
-          <p class="card-sub">
-            说出今天发生了什么，系统先转成文字；你可以修改，再让 AI 整理成草稿。确认之前不会写入随访记录。
-          </p>
-          <VoiceRecorder @transcribed="onTranscribed" />
-
-          <div v-if="voiceText" class="voice-block">
-            <label class="field-label">家长确认后的文字</label>
-            <textarea v-model="voiceText" class="textarea" rows="4"></textarea>
-            <div class="row" style="margin-top: 10px">
-              <button class="btn small" :disabled="drafting || !voiceText.trim()" @click="generateDraft">
-                <AppIcon name="sparkles" :size="14" />
-                {{ drafting ? '整理中…' : 'AI 整理随访记录' }}
-              </button>
-              <button class="btn ghost small" @click="discardVoice">清空</button>
-            </div>
-            <p class="hint" style="margin-top: 8px">机器识别可能有误，请先核对人名、时间与训练项目。</p>
-          </div>
-
-          <div v-if="voiceDraft" class="draft-panel">
-            <div class="spread" style="margin: 14px 0 6px">
-              <div class="card-title" style="margin: 0">
-                <AppIcon name="pencil" :size="16" />
-                AI 草稿
-              </div>
-              <span class="badge accent">待家长确认</span>
-            </div>
-            <p class="hint" style="margin-bottom: 10px">
-              只根据你说出的内容整理，未提到的字段为空；所有字段都可以修改。
-            </p>
-            <div class="field" style="margin-bottom: 10px">
-              <label>记录日期</label>
-              <input v-model="voiceDraft.date" type="date" class="input" />
-            </div>
-            <div class="draft-grid">
-              <div v-for="field in DRAFT_FIELDS" :key="field.key" class="field">
-                <label>{{ field.label }}</label>
-                <textarea
-                  v-model="voiceDraft[field.key]"
-                  class="input draft-input"
-                  rows="2"
-                  :placeholder="field.placeholder"
-                ></textarea>
-              </div>
-            </div>
-            <div class="row" style="margin-top: 12px">
-              <button class="btn" :disabled="savingDraft" @click="saveDraft">
-                <AppIcon name="check" :size="15" />
-                {{ savingDraft ? '保存中…' : '确认并保存为随访记录' }}
-              </button>
-              <button class="btn ghost" @click="voiceDraft = null">放弃草稿</button>
-            </div>
-            <p class="hint" style="margin-top: 8px">情绪、睡眠、训练完成度会沿用下方「今日记录」中的值。</p>
-          </div>
-
-          <div v-if="voiceError" class="error" style="margin-top: 12px">{{ voiceError }}</div>
-        </section>
-
+        
         <section class="card">
           <div class="card-head">
             <div class="card-title"><AppIcon name="calendar" :size="17" /> 今日记录</div>

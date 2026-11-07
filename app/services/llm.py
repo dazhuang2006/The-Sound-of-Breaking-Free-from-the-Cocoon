@@ -175,7 +175,7 @@ def _mock_qa(context: dict[str, Any]) -> str:
         section = snippet.get("section", "")
         content = _trim(snippet.get("content", ""), 160)
         label = f"《{title}》" + (f"·{section}" if section else "")
-        lines.append(f"{index}. {label}：{content}")
+        lines.append(f"[{index}] {label}：{content}")
     lines.append("")
     lines.append("可以这样落到日常：")
     lines.append("- 先观察并记录行为出现的情境，找出可预测的触发点；")

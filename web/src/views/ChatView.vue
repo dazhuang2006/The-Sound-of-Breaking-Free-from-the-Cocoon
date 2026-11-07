@@ -5,8 +5,8 @@ import { chatApi } from '../api'
 import { apiError } from '../api/client'
 import { store } from '../store'
 import SafetyBanner from '../components/SafetyBanner.vue'
-import VoiceRecorder from '../components/VoiceRecorder.vue'
 import AppIcon from '../components/AppIcon.vue'
+import StateBlock from '../components/StateBlock.vue'
 import {
   speak,
   speechSupported,
@@ -33,15 +33,51 @@ const INTENT_LABEL = {
   safety: '安全提示'
 }
 
+// Agent 子图的节点名 → 展示用中文
+const TRACE_LABEL = {
+  plan_queries: '规划检索式',
+  retrieve_evidence: '并行检索',
+  grade_evidence: '证据评级',
+  rewrite_query: '改写检索式（回环）',
+  draft_answer: '生成草稿',
+  self_critique: '自我审查',
+  revise_answer: '修订答案（回环）',
+  finalize_answer: '定稿'
+}
+
+function traceDetail(step) {
+  const parts = []
+  if (step.planner) parts.push(step.planner === 'llm' ? '模型规划' : '规则规划')
+  if (step.queries) parts.push(`${step.queries.length} 条检索式`)
+  if (step.hits !== undefined) parts.push(`命中 ${step.hits} 条`)
+  if (step.coverage !== undefined) parts.push(`覆盖率 ${step.coverage}`)
+  if (step.top !== undefined) parts.push(`最高分 ${step.top}`)
+  if (step.enough !== undefined) parts.push(step.enough ? '证据充足' : '证据不足')
+  if (step.chars) parts.push(`${step.chars} 字`)
+  if (step.provider) parts.push(step.provider)
+  if (step.issues !== undefined) parts.push(`${step.issues} 个待改问题`)
+  if (step.strategy) parts.push(step.strategy === 'llm' ? '模型修订' : '规则修订')
+  if (step.citations !== undefined) parts.push(`${step.citations} 条引用`)
+  return parts.join(' · ')
+}
+
 const sessions = ref([])
 const sessionId = ref(null)
+const sessionTitle = ref('')
+const sessionMode = ref('qa')
 const messages = ref([])
 const input = ref('')
 const sending = ref(false)
+const loadingSession = ref(false)
 const error = ref('')
+const loadError = ref('')
+const pendingSessionId = ref(null)
 const messagesEl = ref(null)
 const showVoice = ref(false)
 const autoRead = ref(localStorage.getItem('pojian_autoread') !== '0')
+
+// 连续点击两个会话时，只接受最后一次请求的结果，避免旧响应覆盖新会话
+let openSeq = 0
 
 function toggleAutoRead() {
   autoRead.value = !autoRead.value
@@ -80,12 +116,17 @@ const starters = [
   }
 ]
 
+const MODE_LABEL = { qa: '居家答疑', training: '情景训练' }
+
 const modeLabel = computed(() => {
+  if (sessionTitle.value && MODE_LABEL[sessionMode.value]) return MODE_LABEL[sessionMode.value]
   const last = [...messages.value].reverse().find((item) => item.role === 'assistant')
   if (last?.training?.status === 'active') return '情景训练中'
   if (last?.intent === 'safety' || last?.safety?.level === 'emergency') return '安全模式'
   return '居家答疑'
 })
+
+const headerTitle = computed(() => sessionTitle.value || '新的对话')
 
 onMounted(() => {
   loadSessions()
@@ -118,13 +159,25 @@ async function scrollToBottom() {
 }
 
 async function openSession(id) {
-  if (sending.value) return
+  if (sending.value || !id) return
+  const seq = ++openSeq
+  pendingSessionId.value = id
+  const chosen = sessions.value.find((item) => item.id === id)
+  if (chosen) {
+    sessionTitle.value = chosen.title || ''
+    sessionMode.value = chosen.mode || 'qa'
+  }
   stopSpeaking()
   error.value = ''
+  loadError.value = ''
+  loadingSession.value = true
   try {
     const { data } = await chatApi.session(id)
+    if (seq !== openSeq) return
     sessionId.value = data.id
-    messages.value = data.messages
+    sessionTitle.value = data.title || ''
+    sessionMode.value = data.mode || 'qa'
+    messages.value = (data.messages || [])
       .filter((item) => item.role !== 'system')
       .map((item) => ({
         role: item.role,
@@ -135,16 +188,25 @@ async function openSession(id) {
       }))
     await scrollToBottom()
   } catch (e) {
-    error.value = apiError(e)
+    if (seq !== openSeq) return
+    loadError.value = apiError(e)
+  } finally {
+    if (seq === openSeq) loadingSession.value = false
   }
 }
 
 function newChat() {
   if (sending.value) return
+  openSeq += 1
   stopSpeaking()
   sessionId.value = null
+  sessionTitle.value = ''
+  sessionMode.value = 'qa'
   messages.value = []
   error.value = ''
+  loadError.value = ''
+  pendingSessionId.value = null
+  loadingSession.value = false
 }
 
 async function send(text) {
@@ -176,6 +238,12 @@ async function send(text) {
       setTimeout(() => speak(data.reply), 300)
     }
     await loadSessions()
+    // 首条消息发出后后端会给会话起标题，这里同步到右侧标题，避免一直显示「新的对话」
+    const current = sessions.value.find((item) => item.id === sessionId.value)
+    if (current) {
+      sessionTitle.value = current.title || sessionTitle.value
+      sessionMode.value = current.mode || sessionMode.value
+    }
   } catch (e) {
     error.value = apiError(e)
   } finally {
@@ -234,8 +302,8 @@ function timeLabel(value) {
     <section class="chat-main">
       <header class="chat-head">
         <div>
-          <h2>
-            新的对话
+          <h2 :title="headerTitle">
+            <span class="chat-title">{{ headerTitle }}</span>
             <span class="mode-pill">{{ modeLabel }}</span>
           </h2>
           <div class="sub">
@@ -271,7 +339,25 @@ function timeLabel(value) {
       </header>
 
       <div ref="messagesEl" class="messages">
-        <div v-if="!messages.length" class="empty-chat">
+        <StateBlock v-if="loadingSession" type="loading" desc="正在打开这个话题…" />
+
+        <StateBlock
+          v-else-if="loadError"
+          type="error"
+          title="这个话题没有打开"
+          :desc="loadError"
+          action="重试"
+          @action="openSession(pendingSessionId)"
+        />
+
+        <template v-else>
+          <StateBlock
+            v-if="!messages.length && sessionId"
+            title="这个话题还没有消息"
+            desc="在下面的输入框继续提问，内容会接在这个话题里。"
+          />
+
+          <div v-else-if="!messages.length" class="empty-chat">
           <div class="empty-chat-head">
             <div class="avatar bot" style="width: 44px; height: 44px; border-radius: 16px">
               <AppIcon name="sparkles" :size="20" />
@@ -335,6 +421,20 @@ function timeLabel(value) {
                 <p>{{ citation.snippet }}</p>
               </div>
             </details>
+
+            <details v-if="item.meta?.agent_trace?.length" class="agent-trace">
+              <summary>
+                Agent 执行轨迹 · {{ item.meta.agent_steps }} 步
+                · 检索 {{ item.meta.retrieval_rounds }} 轮<template v-if="item.meta.revisions">
+                  · 自我修订 {{ item.meta.revisions }} 次</template>
+              </summary>
+              <ol>
+                <li v-for="(step, index) in item.meta.agent_trace" :key="index">
+                  <span class="trace-node">{{ TRACE_LABEL[step.node] || step.node }}</span>
+                  <span class="trace-detail">{{ traceDetail(step) }}</span>
+                </li>
+              </ol>
+            </details>
           </div>
         </div>
 
@@ -342,6 +442,7 @@ function timeLabel(value) {
           <div class="avatar bot">声</div>
           <div class="bubble"><span class="typing"><i></i><i></i><i></i></span></div>
         </div>
+        </template>
       </div>
 
       <footer class="composer">
@@ -356,9 +457,6 @@ function timeLabel(value) {
             @keydown.enter.exact.prevent="send()"
             @input="resize"
           ></textarea>
-          <button class="btn icon" title="语音输入" @click="showVoice = true">
-            <AppIcon name="mic" :size="18" />
-          </button>
           <button class="btn" :disabled="sending || !input.trim()" @click="send()">
             <AppIcon name="send" :size="15" />
             发送
@@ -368,18 +466,5 @@ function timeLabel(value) {
         <div v-if="error" class="error" style="margin-top: 8px">{{ error }}</div>
       </footer>
     </section>
-
-    <div v-if="showVoice" class="modal-mask" @click.self="showVoice = false">
-      <div class="modal-card">
-        <div class="modal-head">
-          <div>
-            <h3>语音输入</h3>
-            <p class="hint">录音只在你点击后开始；识别完成会把文字填进输入框。</p>
-          </div>
-          <button class="modal-close" title="关闭" @click="showVoice = false">×</button>
-        </div>
-        <VoiceRecorder @transcribed="onVoiceTranscript" />
-      </div>
-    </div>
   </div>
 </template>

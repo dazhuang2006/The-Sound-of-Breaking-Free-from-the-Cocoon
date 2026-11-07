@@ -1,22 +1,42 @@
 """主工作流装配。
 
-一个主图 + 三个业务分支 + 一条贯穿全流程的安全审核链路：
+主图负责「安全审核 + 意图路由」，答疑分支下沉为一个可独立编译的子图：
 
         START
           │
        analyze ──(安全拦截)──> safety_response
           │
-          ├─ qa ──────────────> 检索 → 生成 → 输出审核
-          ├─ training_start ──> 训练开场
-          ├─ training_turn ───> 单轮互动（评价/分层提示/推进）
-          ├─ training_end ────> 训练小结
-          ├─ followup_record ─> 记录落库
-          ├─ followup_summary > 阶段小结
-          └─ chat ────────────> 简短引导
+          ├─ qa ──> 自反思子图（见下）
+          ├─ training_start / training_turn / training_end
+          ├─ followup_record / followup_summary
+          └─ chat
           │
          END
 
-业务子流程没有拆成独立 Agent：状态机清晰、可测试，比"为多智能体而多智能体"更可靠。
+答疑子图（Plan → Retrieve → Grade → Draft → Critique → Revise）：
+
+        START
+          │
+      plan_queries           把问题拆成 2-3 条检索式（有模型用模型，没模型用规则）
+          │
+   retrieve_evidence         多条检索式并行召回，按 chunk 去重取最高分
+          │
+    grade_evidence           查全率 + 最高分，判断证据够不够
+          │
+   ┌──────┴───────┐
+   │ 证据不足      │ 证据充足
+   ▼              ▼
+rewrite_query   draft_answer   生成草稿（模型失败则检索兜底）
+   │              │
+   └──> retrieve  self_critique  四条确定性审查：长度/引用/相关性/证据
+                  │
+          ┌───────┴────────┐
+          │ 不达标 & 未改过 │ 通过
+          ▼                ▼
+     revise_answer ──> finalize_answer
+                       （免责声明 + 警示 + 引用 + 轨迹入 meta）
+
+两条回边都有次数上限（检索 2 轮、修订 1 轮），保证图一定收敛，不会无限循环。
 """
 
 from __future__ import annotations
@@ -29,12 +49,52 @@ from app.agents import nodes
 from app.agents.state import AgentState
 
 
+def build_qa_subgraph() -> Any:
+    """自反思答疑子图：可独立编译、独立测试。"""
+    graph = StateGraph(AgentState)
+
+    graph.add_node("plan_queries", nodes.plan_queries)
+    graph.add_node("retrieve_evidence", nodes.retrieve_evidence)
+    graph.add_node("grade_evidence", nodes.grade_evidence)
+    graph.add_node("rewrite_query", nodes.rewrite_query)
+    graph.add_node("draft_answer", nodes.draft_answer)
+    graph.add_node("self_critique", nodes.self_critique)
+    graph.add_node("revise_answer", nodes.revise_answer)
+    graph.add_node("finalize_answer", nodes.finalize_answer)
+
+    graph.add_edge(START, "plan_queries")
+    graph.add_edge("plan_queries", "retrieve_evidence")
+    graph.add_edge("retrieve_evidence", "grade_evidence")
+    graph.add_conditional_edges(
+        "grade_evidence",
+        nodes.route_after_grade,
+        {
+            "rewrite_query": "rewrite_query",
+            "draft_answer": "draft_answer",
+        },
+    )
+    graph.add_edge("rewrite_query", "retrieve_evidence")
+    graph.add_edge("draft_answer", "self_critique")
+    graph.add_conditional_edges(
+        "self_critique",
+        nodes.route_after_critique,
+        {
+            "revise_answer": "revise_answer",
+            "finalize_answer": "finalize_answer",
+        },
+    )
+    graph.add_edge("revise_answer", "self_critique")  # 改完再审一次，最多一轮
+    graph.add_edge("finalize_answer", END)
+
+    return graph.compile()
+
+
 def build_graph() -> Any:
     graph = StateGraph(AgentState)
 
     graph.add_node("analyze", nodes.analyze)
     graph.add_node("safety_response", nodes.safety_response)
-    graph.add_node("qa", nodes.qa_answer)
+    graph.add_node("qa", build_qa_subgraph())
     graph.add_node("training_start", nodes.training_start)
     graph.add_node("training_turn", nodes.training_turn)
     graph.add_node("training_end", nodes.training_end)
