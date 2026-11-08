@@ -38,6 +38,8 @@ const toast = ref('')
 const showLog = ref(false)
 const lastSaid = ref('')
 const autoRead = ref(localStorage.getItem('pojian_game_speech') !== '0')
+// 手动推进：角色回应读完后，由玩家点「继续」才进入下一步，不做任何自动跳转
+const pendingAdvance = ref(null)
 
 const engine = useGameEngine()
 
@@ -117,6 +119,7 @@ async function init() {
 
 function exitToDashboard() {
   stopSpeaking()
+  pendingAdvance.value = null
   clearBubbles()
   saveNow()
   engine.dispose()
@@ -175,16 +178,44 @@ function npcOf(id, sceneData = null) {
   return list.find((item) => item.id === id) || null
 }
 
+/** 按字数估算「读得完」的停留时间（中文约 110ms/字，夹在 2.2–7 秒之间）。 */
+function readingMs(text, min = 2200, max = 7000) {
+  const length = String(text || '').length
+  return Math.max(min, Math.min(max, length * 110))
+}
+
+/**
+ * 手动推进：回应气泡不自动消失，也不再定时跳下一步，
+ * 由玩家读完/听完后点「继续」。彻底避免「话没说完就被切走」。
+ */
+function queueAdvance(label, run) {
+  pendingAdvance.value = { label, run }
+}
+
+async function advance() {
+  const pending = pendingAdvance.value
+  if (!pending) return
+  pendingAdvance.value = null
+  try {
+    await pending.run()
+  } catch (err) {
+    error.value = apiError(err)
+  }
+}
+
 function addBubble({ tone, name, text, anchor, anchorId, lift = 176, ms = 5200 }) {
   if (!text) return
   const key = `bubble-${++bubbleSeq}`
   const entry = { key, tone, name, text, anchor, anchorId, lift }
   bubbles.value = [...bubbles.value.slice(-2), entry]
-  const timer = setTimeout(() => {
-    bubbles.value = bubbles.value.filter((item) => item.key !== key)
-    bubbleTimers.delete(key)
-  }, ms)
-  bubbleTimers.set(key, timer)
+  // ms <= 0 表示「不自动消失」，等玩家点「继续」时再由 clearBubbles 清掉
+  if (ms > 0) {
+    const timer = setTimeout(() => {
+      bubbles.value = bubbles.value.filter((item) => item.key !== key)
+      bubbleTimers.delete(key)
+    }, ms)
+    bubbleTimers.set(key, timer)
+  }
 }
 
 function npcSay(npc, text, tone = 'npc', ms = 5200) {
@@ -248,6 +279,7 @@ async function enterStep(index) {
   if (disposed || !world.value || !training.value) return
   const target = world.value.steps[Math.max(0, Math.min(index, world.value.steps.length - 1))]
   stepIndex.value = target.index
+  pendingAdvance.value = null
   clearBubbles()
 
   if (scene.value?.id !== target.scene) {
@@ -270,7 +302,7 @@ async function enterStep(index) {
     tone: 'task'
   }
   if (autoRead.value) speak(training.value.prompt || '')
-  if (target.line && speaker) npcSay(speaker, target.line, 'npc', 5600)
+  if (target.line && speaker) npcSay(speaker, target.line, 'npc', readingMs(target.line, 2600, 8000))
   scheduleSave()
 }
 
@@ -296,25 +328,25 @@ async function onSubmit(text, source) {
 
     if (training.value.status === 'completed') {
       const speaker = npcOf(world.value.steps[before].speaker)
-      scheduleReaction(() => {
-        npcSay(speaker, training.value.feedback || '说得真好！', 'praise', 9000)
-        if (autoRead.value) speak(training.value.feedback || '')
-      }, 850)
+      const feedback = training.value.feedback || '说得真好！'
+      scheduleReaction(() => npcSay(speaker, feedback, 'praise', 0), 850)
+      if (autoRead.value) speak(feedback)
       flash('这个场景完成啦 🎉')
       scheduleSave()
-      stepTimer = setTimeout(() => {
+      // 不自动跳结算：等玩家读完再点「查看小结」
+      queueAdvance('查看小结 →', async () => {
+        if (disposed) return
+        clearBubbles()
         phase.value = 'done'
-      }, 1900)
+      })
       return
     }
 
     if (training.value.step_index > before) {
+      const feedback = training.value.feedback || ''
       if (data.accepted) {
         const speaker = npcOf(world.value.steps[before].speaker)
-        scheduleReaction(() => {
-          npcSay(speaker, training.value.feedback, 'praise', 5000)
-          if (autoRead.value) speak(training.value.feedback || '')
-        }, 950)
+        scheduleReaction(() => npcSay(speaker, feedback || '说得真好！', 'praise', 0), 950)
         flash('说得真好 ✨')
       } else {
         coach.value = {
@@ -323,11 +355,12 @@ async function onSubmit(text, source) {
           tone: 'demo'
         }
       }
+      if (autoRead.value && feedback) speak(feedback)
       scheduleSave()
-      const delay = data.accepted ? 1800 : 2100
-      stepTimer = setTimeout(async () => {
+      // 关键：气泡常驻 + 等玩家点「继续」，不再有任何自动切换
+      queueAdvance('继续 →', async () => {
         if (!disposed) await enterStep(training.value.step_index)
-      }, delay)
+      })
       return
     }
 
@@ -636,6 +669,10 @@ function chooseGesturePhrase() {
               <p class="coach-text">{{ coach.text }}</p>
             </div>
           </div>
+        </div>
+
+        <div v-if="pendingAdvance" class="game-next">
+          <button class="btn" @click="advance">{{ pendingAdvance.label }}</button>
         </div>
 
         <div v-if="toast" class="game-toast">{{ toast }}</div>

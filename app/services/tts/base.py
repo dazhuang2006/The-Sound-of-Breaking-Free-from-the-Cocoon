@@ -19,6 +19,7 @@ class SpeechResult:
     audio: bytes
     media_type: str
     provider: str
+    cached: bool = False
 
 
 class TTSProvider(ABC):

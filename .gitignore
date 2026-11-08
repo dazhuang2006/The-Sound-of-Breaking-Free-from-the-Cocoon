@@ -106,3 +106,6 @@ desktop.ini
 tmp/
 .cache/
 .ipynb_checkpoints/
+
+# ---------- 比赛 / 答辩临时资料（不进入项目仓库） ----------
+_competition_materials/

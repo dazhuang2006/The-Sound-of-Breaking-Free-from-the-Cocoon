@@ -54,6 +54,10 @@ def get_engine() -> AsyncEngine:
                 cursor = dbapi_connection.cursor()
                 cursor.execute("PRAGMA foreign_keys=ON")
                 cursor.execute("PRAGMA journal_mode=WAL")
+                # 并发写时最多等 5 秒而不是立刻抛 "database is locked"
+                cursor.execute("PRAGMA busy_timeout=5000")
+                # WAL 下用 NORMAL 兼顾安全与写入速度
+                cursor.execute("PRAGMA synchronous=NORMAL")
                 cursor.close()
 
         logger.info("数据库引擎已创建: %s", url)

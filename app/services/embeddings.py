@@ -122,20 +122,33 @@ class HttpEmbedder(Embedder):
 
     name = "http"
 
-    def __init__(self, base_url: str, model: str, api_key: str = "", dim: int = 1024) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        model: str,
+        api_key: str = "",
+        dim: int = 1024,
+        trust_env: bool = False,
+    ) -> None:
         if not base_url:
             raise ValueError("embedding_http_url 未配置")
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.api_key = api_key
         self.dim = dim
+        self.trust_env = trust_env
         self._client: httpx.AsyncClient | None = None
 
     @property
     def client(self) -> httpx.AsyncClient:
         if self._client is None:
             headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
-            self._client = httpx.AsyncClient(base_url=self.base_url, headers=headers, timeout=60)
+            self._client = httpx.AsyncClient(
+                base_url=self.base_url,
+                headers=headers,
+                timeout=60,
+                trust_env=self.trust_env,
+            )
         return self._client
 
     async def embed_documents(self, texts: list[str]) -> np.ndarray:

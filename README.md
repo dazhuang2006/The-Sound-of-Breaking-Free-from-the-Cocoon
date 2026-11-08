@@ -7,19 +7,30 @@
 
 ![对话界面](docs/screenshots/chat.png)
 
+## 项目资料地图
+
+| 资料 | 位置 | 说明 |
+| --- | --- | --- |
+| 应用代码 | [`app/`](app/)、[`web/`](web/)、[`scripts/`](scripts/)、[`tests/`](tests/) | FastAPI + LangGraph 后端、Vue3 前端、入库/演示脚本、66 个测试 |
+| RAG 知识库 | [`knowledge/`](knowledge/) | 20 篇 Markdown（KB-01…KB-20），带来源分级与审核状态，约 251 个检索块 |
+| 初版留档 | [`knowledge_archive_v1/`](knowledge_archive_v1/) | 最初 11 篇知识文档，已被 20 篇版本替代，仅留档 |
+| 架构图 | [`docs/diagrams/`](docs/diagrams/) | 系统架构、LangGraph 主图、答疑子图三张 PNG |
+| 部署与设计文档 | [`docs/`](docs/) | 部署清单、设计系统、2D 游戏设计、界面截图 |
+
 ## 目录
 
 - [1. 这个项目解决什么问题](#1-这个项目解决什么问题)
 - [2. 技术栈与项目结构](#2-技术栈与项目结构)
 - [3. 系统架构](#3-系统架构)
 - [4. LangGraph 工作流](#4-langgraph-工作流)
-- [5. 三个核心设计](#5-三个核心设计)
+- [5. 核心设计](#5-核心设计)
 - [6. 快速开始](#6-快速开始)
 - [7. API 一览](#7-api-一览)
 - [8. 数据模型](#8-数据模型)
 - [9. 测试与验证](#9-测试与验证)
 - [10. 配置说明](#10-配置说明)
 - [11. 已知边界与生产化 TODO](#11-已知边界与生产化-todo)
+- [12. 项目资料与知识库](#12-项目资料与知识库)
 
 ---
 
@@ -88,9 +99,12 @@ soud/
 │       ├── asr/                # ASR Provider：FunASR / HTTP / disabled
 │       ├── chat.py             # 会话编排：上下文 → 图 → 落库 → 缓存
 │       └── container.py        # 服务容器与启动自检
-├── knowledge/                  # 11 篇示例知识文档（Markdown + front matter）
+├── knowledge/                  # 20 篇知识文档 KB-01…KB-20（Markdown + front matter，约 251 块）
+├── knowledge_archive_v1/       # 初版 11 篇知识文档（已下线，留档）
+├── docs/                       # 部署、设计系统、2D 游戏设计、截图、架构图
+│   └── diagrams/               # 01-architecture / 02-langgraph-main / 03-langgraph-qa-subgraph
 ├── scripts/                    # 入库、演示数据、端到端冒烟
-├── tests/                      # 65 个测试
+├── tests/                      # 66 个测试
 ├── web/                        # Vue3 前端（工作台 / 档案 / 答疑 / 2D 游戏 / 随访 / 设置）
 │   ├── src/styles.css          # 星星的孩子设计系统：主题变量 + 统一组件样式
 │   ├── src/components/         # AppIcon / StateBlock / TrendChart / VoiceRecorder / SafetyBanner
@@ -178,7 +192,7 @@ flowchart LR
     S((START)) --> AN["analyze<br/>意图识别 + 安全预检"]
 
     AN -->|急症 / 诊断 / 用药| SR["safety_response<br/>固定安全话术"]
-    AN -->|答疑| QA["qa 子图<br/>规划 → 并行检索 → 证据评级<br/>→ 生成 → 自审 → 修订"]
+    AN -->|答疑| QA["qa 子图<br/>规划 → 并行检索<br/>→ 证据评级 → 生成<br/>→ 自审 → 修订"]
     AN -->|开始训练| TS["training_start"]
     AN -->|训练中| TT["training_turn<br/>评价 → 分层提示 → 推进"]
     AN -->|结束训练| TE["training_end<br/>训练小结"]
@@ -200,16 +214,18 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    P["plan_queries<br/>把问题拆成 2-3 条检索式"] --> R["retrieve_evidence<br/>asyncio.gather 并行召回 + 按 chunk 去重"]
+    P["plan_queries<br/>把问题拆成 2-3 条检索式"] --> R["retrieve_evidence<br/>asyncio.gather 并行召回<br/>按 chunk 去重"]
     R --> G["grade_evidence<br/>查全率 + 最高分"]
     G -->|证据不足 且 轮次 < 2| W["rewrite_query<br/>换一批检索式，阈值放宽"]
     W --> R
     G -->|证据充足 / 已达上限| D["draft_answer<br/>模型失败则检索兜底"]
     D --> C["self_critique<br/>长度 / 引用 / 相关性 / 证据"]
-    C -->|不达标 且 未修订过| V["revise_answer<br/>有模型用模型改，没有则确定性补丁"]
+    C -->|不达标 且 未修订过| V["revise_answer<br/>有模型用模型改<br/>没有则确定性补丁"]
     V --> C
-    C -->|通过| F["finalize_answer<br/>免责声明 + 引用 + 轨迹写入 meta"]
+    C -->|通过| F["finalize_answer<br/>免责声明 + 引用<br/>轨迹写入 meta"]
 ```
+
+> **图片版（架构图）**：`docs/diagrams/01-architecture.png`、`02-langgraph-main.png`、`03-langgraph-qa-subgraph.png`。
 
 几条关键设计：
 
@@ -217,7 +233,7 @@ flowchart TD
 - **真并行**：多条检索式同时召回，按 `chunk.id` 去重取最高分，而不是串行跑多次；
 - **两条回边都有上限**（检索 2 轮、修订 1 轮），图一定收敛，不会出现"自我反思到死循环"；
 - **自审是确定性规则**（回答长度、是否带 `[n]` 引用、与提问的词法重合度、是否有检索证据），不依赖模型自我评价，结果可复现；
-- **执行轨迹可展示**：每个节点把摘要写进 `state.trace`，最终随响应返回 `meta.agent_trace`，前端或 PPT 可以直接画出来。
+- **执行轨迹可展示**：每个节点把摘要写进 `state.trace`，最终随响应返回 `meta.agent_trace`，前端或架构图可以直接画出来。
 
 意图路由是可解释的规则，而不是让 LLM 猜：
 
@@ -231,7 +247,7 @@ flowchart TD
 
 ---
 
-## 5. 三个核心设计
+## 5. 核心设计
 
 ### 5.1 医疗安全：规则兜底，Prompt 只是第二道防线
 
@@ -650,7 +666,7 @@ python -m scripts.smoke_e2e    # 对运行中的服务跑完整链路
 
 **明确的边界**
 
-- `knowledge/` 是**示例知识库**，内容依据公开家长手册与临床实践共识整理，上线前必须由儿童保健科 / 发育行为科专业人员逐条审核；
+- `knowledge/` 是**待专业审核的知识库**（KB-01…KB-20，251 个检索块）：每篇带来源分级（A 国家规范 / B 专家共识与循证报告 / C 实践建议）和「待专业审核」状态，上线前必须由儿童保健科 / 发育行为科专业人员逐条审核；
 - 系统不做诊断、不做康复评定、不给用药建议，不能替代医生与持证康复师；
 - 默认的 hash 向量只保证链路可跑通，不具备语义泛化能力，生产请切 BGE-M3 或远程嵌入；
 - Mock 模式只是模板生成，响应里会标记 `mocked: true`，不要用于真实业务；
@@ -668,6 +684,41 @@ python -m scripts.smoke_e2e    # 对运行中的服务跑完整链路
 5. ASR 真机部署：下载 FunASR 权重、验证中文识别效果，再考虑流式识别与 GPU；
 6. 可观测性：OpenTelemetry + 每次生成的 trace（检索片段、Prompt 版本、token 消耗）；
 7. 前端：会话搜索、随访趋势图、无障碍与移动端适配。
+
+---
+
+## 12. 项目资料与知识库
+
+### 12.1 知识库
+
+| 资料 | 位置 | 说明 |
+| --- | --- | --- |
+| RAG 知识库 | [`knowledge/`](knowledge/) | 20 篇 Markdown（KB-01…KB-20），约 251 个检索块；应用实际读取这里 |
+| 初版留档 | [`knowledge_archive_v1/`](knowledge_archive_v1/) | 最初 11 篇知识文档，已下线，仅留档 |
+| 架构图 | [`docs/diagrams/`](docs/diagrams/) | 系统架构、LangGraph 主图、答疑子图三张 PNG |
+
+**边界**：`knowledge/` 里的 20 篇是二次整理稿，全部标为“待儿童保健 / 发育行为 / 康复专业人员审核”，上线前必须由专业人员逐条审核。当前没有使用真实儿童病历或网络爬取数据，演示数据为合成数据。
+
+### 12.2 知识与数据来源
+
+1. [国家卫健委《0～6岁儿童孤独症筛查干预服务规范（试行）》（2022）](https://www.gov.cn/zhengce/zhengceku/2022-09/23/content_5711379.htm)
+2. [《孤独症谱系障碍儿童早期识别筛查和早期干预专家共识》（2017）](https://rs.yiigle.com/cmaid/1013775)
+3. [《中国低龄儿童孤独症谱系障碍早期诊断专家共识》（2022）](https://www.sinomed.ac.cn/article.do?ui=2022371355)
+4. [NCAEP《Evidence-Based Practices for Children, Youth, and Young Adults with Autism》（2020）](https://ncaep.fpg.unc.edu/research-and-resources/)
+5. [NICE CG170：Autism spectrum disorder in under 19s](https://www.nice.org.uk/guidance/cg170)
+6. [WHO Caregiver Skills Training（CST）](https://www.who.int/teams/mental-health-and-substance-use/treatment-care/who-caregivers-skills-training-for-families-of-children-with-developmental-delays-and-disorders)
+7. [AAP《Identification, Evaluation, and Management of Children With Autism Spectrum Disorder》（2020）](https://publications.aap.org/pediatrics/article/145/1/e20193447/36917/)
+8. [《孤独症儿童关爱促进行动实施方案（2024—2028年）》](https://zc.gjzwfw.gov.cn/art/2024/9/26/art_14_76475.html)
+9. [《中华人民共和国个人信息保护法》](http://www.npc.gov.cn/npc/c2/c30834/202108/t20210820_313088.html)
+
+项目自有内容：六类情景训练脚本、随访字段、2D 游戏世界配置来自 [`app/services/`](app/services/)，属于产品设计，不替代临床指南。
+
+### 12.3 当前状态（2026-11-08）
+
+- 代码：66 个测试通过（`python -m pytest -q`），端到端冒烟覆盖答疑→安全拦截→训练→随访。
+- 知识库：`knowledge/` 20 篇 Markdown、约 251 个检索块；待专业审核。
+- 文档：3 张项目架构图；`README.md` 已改为项目资料说明。
+- 待补：100 条家长真实问题的 RAG 评估集、专家审核工作流、小样本可用性测试、临床效果验证。
 
 ---
 

@@ -12,7 +12,7 @@ from __future__ import annotations
 import hashlib
 import math
 import re
-from collections import Counter
+from collections import Counter, OrderedDict
 from dataclasses import dataclass, field
 from datetime import UTC
 from pathlib import Path
@@ -24,6 +24,10 @@ from app.services.embeddings import Embedder
 from app.services.vectorstore import KnowledgeChunk, SearchHit, VectorStore
 
 logger = get_logger(__name__)
+
+# 查询向量缓存：演示时同一句话会被反复问，省掉每次都调 embedding 接口
+_QUERY_VECTOR_CACHE: OrderedDict[tuple[str, str], Any] = OrderedDict()
+_QUERY_VECTOR_CACHE_MAX = 256
 
 _HEADING = re.compile(r"^(#{1,3})\s+(.*)$")
 _SENTENCE = re.compile(r"(?<=[。！？!?；;])|\n+")
@@ -292,6 +296,19 @@ class KnowledgeBase:
     async def ingest_directory(self, directory: str | Path, replace: bool = False) -> IngestReport:
         return await self.ingest_documents(load_markdown_documents(directory), replace=replace)
 
+    async def _query_vector(self, query: str) -> Any:
+        """查询向量带缓存；调用方负责处理异常降级。"""
+        key = (self.embedder.name, query)
+        cached = _QUERY_VECTOR_CACHE.get(key)
+        if cached is not None:
+            _QUERY_VECTOR_CACHE.move_to_end(key)
+            return cached
+        vector = await self.embedder.embed_query(query)
+        _QUERY_VECTOR_CACHE[key] = vector
+        while len(_QUERY_VECTOR_CACHE) > _QUERY_VECTOR_CACHE_MAX:
+            _QUERY_VECTOR_CACHE.popitem(last=False)
+        return vector
+
     async def search(
         self,
         query: str,
@@ -303,7 +320,12 @@ class KnowledgeBase:
             return []
         top_k = top_k or self.settings.rag_top_k
         min_score = self.settings.rag_min_score if min_score is None else min_score
-        vector = await self.embedder.embed_query(query)
+        try:
+            vector = await self._query_vector(query)
+        except Exception as exc:
+            # 云端 embedding 抖动时宁可「本次无知识库依据」，也不要把问答整个打断
+            logger.warning("查询向量化失败，本次按无检索结果处理: %s", exc)
+            return []
         # 多召回一些，融合后再截断
         hits = await self.store.search(vector, top_k=max(top_k * 3, 10))
         if not hits:

@@ -230,10 +230,17 @@ def build_vector_store(settings: Settings | None = None, dim: int | None = None)
     settings = settings or get_settings()
     dimension = dim or settings.embedding_dim
     if settings.vector_backend == "milvus":
+        # 优先用 milvus-lite 的本地单文件（不需要 etcd/minio/Docker）。
+        # 注意不能复用 MILVUS_URI：pymilvus 自己也会读这个环境变量做默认连接，
+        # 传本地路径会让它在 import 阶段就按远程 URI 解析而报错。
+        uri = settings.milvus_lite_path or settings.milvus_uri
+        if not uri.startswith(("http://", "https://")):
+            # milvus-lite 需要绝对路径；顺带把相对路径按项目根解析
+            from pathlib import Path as _Path
+
+            uri = str(_Path(uri).expanduser().resolve())
         try:
-            return MilvusVectorStore(
-                settings.milvus_uri, settings.milvus_collection, dimension, settings.milvus_token
-            )
+            return MilvusVectorStore(uri, settings.milvus_collection, dimension, settings.milvus_token)
         except Exception as exc:  # Milvus 未就绪时降级，避免整个服务不可用
             logger.warning("Milvus 连接失败，降级为内存向量库: %s", exc)
     return MemoryVectorStore(settings.kb_index_path)

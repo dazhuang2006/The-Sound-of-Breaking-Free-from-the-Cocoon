@@ -16,3 +16,4 @@ class TTSHealthResponse(BaseModel):
     voices: list[str] = Field(default_factory=list)
     default_voice: str = ""
     max_chars: int
+    cache_entries: int = 0

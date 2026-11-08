@@ -1554,17 +1554,55 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .session-item {
-  text-align: left;
+  display: flex;
+  align-items: center;
   border: 1px solid transparent;
   background: transparent;
   border-radius: 11px;
-  padding: 9px 10px;
+  padding: 0;
   font-size: 12.5px;
   color: #6f5d4f;
+  transition: all 0.15s;
+}
+
+.session-main {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  padding: 9px 4px 9px 10px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  transition: all 0.15s;
+}
+
+.session-del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: #b9a99a;
+  cursor: pointer;
+  padding: 6px 8px;
+  margin-right: 2px;
+  border-radius: 8px;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+
+.session-item:hover .session-del,
+.session-del:focus-visible {
+  opacity: 1;
+}
+
+.session-del:hover {
+  background: #f3d7d0;
+  color: #b0453a;
 }
 
 .session-item:hover {

@@ -42,12 +42,20 @@ async def audio_health(services: ServicesDep) -> AudioHealthResponse:
 
 @router.get("/tts/health", response_model=TTSHealthResponse)
 async def tts_health(services: ServicesDep) -> TTSHealthResponse:
+    cache_entries = 0
+    stats = getattr(services.tts, "cache_stats", None)
+    if stats is not None:
+        try:
+            cache_entries = int((await stats()).get("entries", 0))
+        except Exception:  # pragma: no cover - 统计失败不影响健康检查
+            cache_entries = 0
     return TTSHealthResponse(
         provider=services.tts.name,
         available=services.tts.available(),
         voices=services.tts.voices(),
         default_voice=services.settings.tts_voice,
         max_chars=services.settings.tts_max_chars,
+        cache_entries=cache_entries,
     )
 
 
@@ -75,7 +83,10 @@ async def synthesize_speech(
     return Response(
         content=result.audio,
         media_type=result.media_type,
-        headers={"Cache-Control": "no-store"},
+        headers={
+            "Cache-Control": "no-store",
+            "X-TTS-Cached": "1" if result.cached else "0",
+        },
     )
 
 

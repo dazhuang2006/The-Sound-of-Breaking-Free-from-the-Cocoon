@@ -151,15 +151,46 @@ async function fetchSpeech(text) {
 }
 
 async function speakCloud(content, token) {
-  const chunks = splitText(content, 700)
-  for (const chunk of chunks) {
-    const blob = await fetchSpeech(chunk)
+  // 分句流水线：第一句合成好就开始播，后面的边播边合成。
+  // 供应商（硅基流动）不支持真流式，但短句并行预取 + 顺序播放，
+  // 可以把「等 N 句合成完再出声」变成「等 1 句就出声」。
+  const chunks = splitText(content, 60)
+  if (!chunks.length) return false
+
+  const pending = new Map()
+  const ensure = (index) => {
+    if (!pending.has(index)) {
+      pending.set(index, fetchSpeech(chunks[index]))
+    }
+    return pending.get(index)
+  }
+
+  ensure(0)
+  if (chunks.length > 1) ensure(1)
+
+  for (let index = 0; index < chunks.length; index += 1) {
+    const blob = await ensure(index)
     if (token !== generation) return false
     if (!(blob instanceof Blob)) throw new Error('invalid audio response')
+    // 播放当前句的同时，预取后面两句
+    for (let ahead = index + 1; ahead <= index + 2 && ahead < chunks.length; ahead += 1) {
+      ensure(ahead)
+    }
     await playBlob(blob, token)
   }
   if (token === generation) speaking.value = false
   return true
+}
+
+/**
+ * 预取朗读音频：用户还没点喇叭时先把前几句合成好。
+ * 服务端按文本缓存，真正点击时直接命中（毫秒级）。
+ */
+export async function prefetchSpeech(text, sentences = 2) {
+  const content = cleanText(text)
+  if (!content) return
+  const chunks = splitText(content, 60).slice(0, Math.max(1, sentences))
+  await Promise.allSettled(chunks.map((chunk) => fetchSpeech(chunk)))
 }
 
 function speakWithBrowser(content) {

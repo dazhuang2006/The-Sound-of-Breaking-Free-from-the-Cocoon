@@ -66,10 +66,15 @@ class Settings(BaseSettings):
     embedding_http_url: str = ""
     embedding_http_api_key: str = ""
     embedding_http_model: str = "bge-m3"
+    # 与 ASR/TTS 同理：本机代理变量格式不标准（NO_PROXY 含 [::1]）时，
+    # httpx 会在解析代理阶段直接抛 InvalidURL，关掉 trust_env 走直连。
+    embedding_http_trust_env: bool = False
 
     # ---------- 向量库 ----------
     vector_backend: Literal["memory", "milvus"] = "memory"
     milvus_uri: str = "http://127.0.0.1:19530"
+    # milvus-lite：本地单文件向量库（填入路径即启用，优先生效）
+    milvus_lite_path: str = ""
     milvus_token: str = ""
     milvus_collection: str = "pojian_kb"
 
@@ -119,6 +124,9 @@ class Settings(BaseSettings):
     tts_timeout_seconds: float = 60.0
     tts_max_chars: int = 1500
     tts_trust_env: bool = False
+    # 合成结果落盘缓存：反复朗读的句子、以及服务重启后都能毫秒命中
+    tts_cache_enabled: bool = True
+    tts_cache_dir: str = "data/tts_cache"
 
     @model_validator(mode="after")
     def _guard_secret_key(self) -> Settings:

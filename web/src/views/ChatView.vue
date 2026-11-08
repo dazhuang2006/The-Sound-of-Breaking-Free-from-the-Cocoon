@@ -17,7 +17,8 @@ import {
   ttsVoices,
   ttsDefaultVoice,
   setTtsVoice,
-  loadTtsVoices
+  loadTtsVoices,
+  prefetchSpeech
 } from '../utils/speech'
 
 const route = useRoute()
@@ -209,6 +210,18 @@ function newChat() {
   loadingSession.value = false
 }
 
+async function removeSession(item) {
+  const name = item.title || '未命名对话'
+  if (!window.confirm(`删除「${name}」？删除后不可恢复。`)) return
+  try {
+    await chatApi.remove(item.id)
+    sessions.value = sessions.value.filter((session) => session.id !== item.id)
+    if (sessionId.value === item.id) newChat()
+  } catch (e) {
+    error.value = apiError(e)
+  }
+}
+
 async function send(text) {
   const content = (typeof text === 'string' ? text : input.value).trim()
   if (!content || sending.value) return
@@ -236,6 +249,9 @@ async function send(text) {
     })
     if (autoRead.value) {
       setTimeout(() => speak(data.reply), 300)
+    } else if (speechSupported) {
+      // 没开自动朗读时，后台先把前两句合成好；用户点喇叭时直接命中缓存
+      void prefetchSpeech(data.reply)
     }
     await loadSessions()
     // 首条消息发出后后端会给会话起标题，这里同步到右侧标题，避免一直显示「新的对话」
@@ -285,16 +301,19 @@ function timeLabel(value) {
         </button>
       </div>
       <div class="session-list">
-        <button
+        <div
           v-for="item in sessions"
           :key="item.id"
           class="session-item"
           :class="{ active: item.id === sessionId }"
-          :title="item.title"
-          @click="openSession(item.id)"
         >
-          {{ timeLabel(item.updated_at) }} · {{ item.title }}
-        </button>
+          <button class="session-main" :title="item.title" @click="openSession(item.id)">
+            {{ timeLabel(item.updated_at) }} · {{ item.title }}
+          </button>
+          <button class="session-del" title="删除这条对话" @click.stop="removeSession(item)">
+            <AppIcon name="trash" :size="13" />
+          </button>
+        </div>
         <div v-if="!sessions.length" class="session-empty">还没有对话，先问一个问题吧。</div>
       </div>
     </aside>

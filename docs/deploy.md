@@ -372,7 +372,98 @@ cp data/app.db data/app.db.$(date +%F)                                          
 
 ---
 
-## 8. 安全底线（对外演示前务必做）
+## 8. 稳定性加固（推荐在演示前一晚做完）
+
+服务「突然打不开」通常只有四类原因：进程挂了、内存/磁盘满了、日志把盘吃满、数据库被锁。下面四条分别对应。
+
+### 8.1 崩溃自动拉起 + 看门狗
+
+`systemd` 的 `Restart=always` 只能处理「进程退出」，处理不了「进程还在但接口卡死」。所以再加一个每 2 分钟的健康检查：
+
+```bash
+# /usr/local/bin/soud-watchdog.sh
+#!/bin/bash
+URL="http://127.0.0.1:8000/health"
+for _ in 1 2; do
+  curl -fsS --max-time 5 "$URL" >/dev/null 2>&1 && exit 0
+  sleep 3
+done
+logger -t soud-watchdog "health check failed twice, restarting soud"
+systemctl restart soud
+```
+
+```ini
+# /etc/systemd/system/soud-watchdog.timer
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+```
+
+同时在 unit 里关掉「重启次数上限」，否则连续崩 5 次 systemd 就彻底放弃了：
+
+```ini
+[Unit]
+StartLimitIntervalSec=0
+
+[Service]
+Restart=always
+RestartSec=2
+```
+
+### 8.2 日志限额
+
+```ini
+# /etc/systemd/journald.conf.d/99-soud.conf
+[Journal]
+SystemMaxUse=200M
+RuntimeMaxUse=50M
+SystemMaxFileSize=20M
+```
+
+### 8.3 SQLite 并发保护
+
+WAL 模式下并发写仍然可能撞锁，所以连接建立时补两条 pragma（代码里已内置）：
+
+```sql
+PRAGMA journal_mode=WAL;
+PRAGMA busy_timeout=5000;   -- 撞锁时等待 5 秒，而不是立刻报 database is locked
+PRAGMA synchronous=NORMAL;
+```
+
+### 8.4 每日备份
+
+```bash
+# crontab -e
+30 3 * * * /usr/local/bin/soud-backup.sh >/dev/null 2>&1
+```
+
+备份用 `sqlite3` 的 backup API（不是直接 cp，避免拷到写了一半的文件），保留 7 天：
+
+```python
+con = sqlite3.connect("/opt/soud/data/app.db")
+bck = sqlite3.connect(f"/root/backups/soud/app-{stamp}.db")
+con.backup(bck)
+```
+
+### 8.5 语音延迟优化（已内置）
+
+TTS 单次合成本身要 1–3 秒（硅基流动服务端推理，与文本长度无关），网络只占 ~80ms。
+代码里做了两层缓存：**进程内 LRU（48 条 / 8MB）+ 落盘缓存（`data/tts_cache/`）**。
+
+效果（实测）：
+
+| 场景 | 耗时 |
+| --- | --- |
+| 首次合成 | 1.4–3.0 s |
+| 同句再次请求（内存命中） | ~0.006 s |
+| 服务重启后同句（磁盘命中） | ~0.06 s |
+
+> 演示技巧：**正式演示前把要念的句子先放一遍**，缓存落盘后即使中途重启也还是毫秒级。
+> 接口响应头 `X-TTS-Cached: 1` 可以直接看出是否命中。
+
+---
+
+## 9. 安全底线（对外演示前务必做）
 
 - `.env` **绝不进 git**（已在 `.gitignore` 里），也不要贴到群里；
 - 示例密码全部换掉，`SECRET_KEY` 每台机器独立生成；

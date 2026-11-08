@@ -5,3 +5,6 @@ FlagEmbedding>=1.2.10
 torch>=2.2
 transformers>=4.40
 sentencepiece>=0.2.0
+
+# Milvus Lite：本地单文件向量库（配合 VECTOR_BACKEND=milvus + MILVUS_LITE_PATH 使用）
+milvus-lite>=2.4
